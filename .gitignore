@@ -1,0 +1,21 @@
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Build output
+client/dist/
+
+# Environment and secrets (never commit these)
+.env
+.env.local
+.env.*.local
+
+# Project-specific data
+server/data/
+
+# OS and editor
+.venv/
+__pycache__/
+.DS_Store
+*.log

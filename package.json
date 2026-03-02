@@ -1,0 +1,13 @@
+{
+  "name": "fpl-dashboard",
+  "private": true,
+  "description": "FPL Live Dashboard - React frontend + Express proxy",
+  "scripts": {
+    "install:all": "cd server && npm install && cd ../client && npm install",
+    "build": "npm run install:all && cd client && npm run build",
+    "start": "node server/index.js",
+    "server": "cd server && npm run dev",
+    "client": "cd client && npm run dev",
+    "preview": "cd client && npm run preview"
+  }
+}
