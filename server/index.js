@@ -29,6 +29,15 @@ loadLeagueIndex();
 app.use(cors());
 app.use(express.json());
 
+/** In production (e.g. Railway), redirect HTTP to HTTPS so the site is always secured. */
+app.use((req, res, next) => {
+  const proto = req.get('x-forwarded-proto');
+  if (proto === 'http') {
+    return res.redirect(301, `https://${req.get('host')}${req.originalUrl}`);
+  }
+  next();
+});
+
 /** Proxy player photos; short cache so images stay current. */
 app.get('/api/photo/:code', async (req, res) => {
   const code = req.params.code;
