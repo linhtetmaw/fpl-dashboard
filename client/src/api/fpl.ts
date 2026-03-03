@@ -43,6 +43,13 @@ export async function getEntryHistory(teamId: number) {
   );
 }
 
+/** Player's gameweek history and upcoming fixtures (for detail card). */
+export async function getElementSummary(elementId: number) {
+  return fetchApi<import('../types/fpl').ElementSummaryResponse>(
+    `${API_BASE}/element-summary/${elementId}/`
+  );
+}
+
 export async function getLeagueStandings(leagueId: number, page = 1) {
   return fetchApi<import('../types/fpl').LeagueStandingsResponse>(
     `${API_BASE}/leagues-classic/${leagueId}/standings/`,

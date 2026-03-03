@@ -134,7 +134,10 @@ export default function Dashboard() {
                 <section className="mt-8">
                   <div className="flex flex-col lg:flex-row gap-6 items-stretch">
                     <div ref={pitchWrapRef} className="min-w-0 lg:flex-1">
-                      <h2 className="text-lg font-semibold text-white mb-3">Pitch view</h2>
+                      <div className="flex flex-wrap items-baseline gap-2 mb-3">
+                      <h2 className="text-lg font-semibold text-white">Pitch view</h2>
+                      <span className="text-slate-500 text-xs">Click Player Image to view profile</span>
+                    </div>
                       <PitchView players={teamSummary.players} bootstrap={bootstrap ?? undefined} />
                     </div>
                     <div

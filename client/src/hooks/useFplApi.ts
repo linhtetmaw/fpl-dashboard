@@ -14,6 +14,7 @@ import {
   getEntryHistory,
   getLeagueStandings,
   getFixtures,
+  getElementSummary,
 } from '../api/fpl';
 
 const BOOTSTRAP_QUERY_KEY = ['fpl', 'bootstrap-static'] as const;
@@ -88,6 +89,17 @@ export function useAllFixtures() {
   return useQuery({
     queryKey: [...FIXTURES_QUERY_KEY, 'all'],
     queryFn: () => getFixtures(),
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+const ELEMENT_SUMMARY_QUERY_KEY = ['fpl', 'element-summary'] as const;
+
+export function useElementSummary(elementId: number | null) {
+  return useQuery({
+    queryKey: [...ELEMENT_SUMMARY_QUERY_KEY, elementId],
+    queryFn: () => getElementSummary(elementId!),
+    enabled: elementId != null && elementId > 0,
     staleTime: 2 * 60 * 1000,
   });
 }

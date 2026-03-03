@@ -54,6 +54,32 @@ export interface FplTeam {
   name: string;
 }
 
+/** One gameweek of history from element-summary (player's points in that GW). */
+export interface ElementHistoryEntry {
+  round: number;
+  total_points: number;
+  opponent_team?: number;
+  was_home?: boolean;
+}
+
+/** One upcoming fixture from element-summary (for a player's team). */
+export interface ElementFixture {
+  id: number;
+  event: number;
+  event_name: string;
+  kickoff_time: string;
+  team_h: number;
+  team_a: number;
+  is_home: boolean;
+  difficulty: number;
+  finished?: boolean;
+}
+
+export interface ElementSummaryResponse {
+  history: ElementHistoryEntry[];
+  fixtures: ElementFixture[];
+}
+
 /** Single fixture from FPL API (fixtures endpoint, optional ?event=GW). */
 export interface FplFixture {
   id: number;

@@ -1,5 +1,7 @@
+import { useState } from 'react';
 import type { PlayerPoints } from '../types/fpl';
 import type { BootstrapStatic, FplElement } from '../types/fpl';
+import PlayerDetailCard from './PlayerDetailCard';
 
 /** Build search name for third-party photo API (TheSportsDB): "First_Last" or web_name. */
 function getPlayerPhotoQuery(element: FplElement | undefined): { name: string; code: string } | null {
@@ -53,6 +55,7 @@ interface PitchViewProps {
 }
 
 export default function PitchView({ players, bootstrap }: PitchViewProps) {
+  const [selectedElementId, setSelectedElementId] = useState<number | null>(null);
   const rows = getFormationRows(players);
   const [gkRow, defRow, midRow, fwdRow] = rows;
   const elementById = new Map<number, FplElement>(
@@ -63,10 +66,12 @@ export default function PitchView({ players, bootstrap }: PitchViewProps) {
   );
 
   const bench = getBenchPlayers(players);
+  const selectedElement = selectedElementId != null ? elementById.get(selectedElementId) : null;
+  const selectedTeamName = selectedElement != null ? teamById.get(selectedElement.team) : undefined;
 
   /** Shared card box: border, background, rounded. Used for pitch and bench. */
   const cardBoxClass =
-    'flex flex-col items-center rounded-lg border border-fpl-border bg-fpl-dark/80 px-2 py-2 flex-shrink-0';
+    'flex flex-col items-center rounded-lg border border-fpl-border bg-fpl-dark/80 px-2 py-2 flex-shrink-0 cursor-pointer hover:border-fpl-accent/50 hover:bg-fpl-dark transition-colors';
 
   const renderPlayerCard = (
     p: PlayerPoints,
@@ -82,7 +87,13 @@ export default function PitchView({ players, bootstrap }: PitchViewProps) {
     const teamName = element ? teamById.get(element.team) : undefined;
     const imageUrl = getPlayerImageUrl(element, teamName);
     return (
-      <div key={`${p.element_id}-${p.position}`} className={cardBoxClass}>
+      <button
+        type="button"
+        key={`${p.element_id}-${p.position}`}
+        className={`${cardBoxClass} text-left`}
+        onClick={() => element && setSelectedElementId(p.element_id)}
+        title="View player details"
+      >
         <div
           className={`relative rounded overflow-hidden bg-fpl-dark border border-fpl-border flex-shrink-0 ${imageSize}`}
         >
@@ -120,8 +131,8 @@ export default function PitchView({ players, bootstrap }: PitchViewProps) {
         <p className={`mt-1 text-slate-300 truncate text-center ${maxNameWidth} ${nameClass}`}>
           {p.web_name}
         </p>
-        <p className={`text-fpl-accent ${pointsClass}`}>{p.total_points_effective} pts</p>
-      </div>
+        <p className={pointsClass} style={{ color: '#f37025' }}>{p.total_points_effective} pts</p>
+      </button>
     );
   };
 
@@ -172,6 +183,15 @@ export default function PitchView({ players, bootstrap }: PitchViewProps) {
             )}
           </div>
         </div>
+      )}
+
+      {selectedElement != null && (
+        <PlayerDetailCard
+          element={selectedElement}
+          teamName={selectedTeamName ?? ''}
+          teams={bootstrap?.teams ?? []}
+          onClose={() => setSelectedElementId(null)}
+        />
       )}
     </div>
   );

@@ -1,5 +1,6 @@
 import express from 'express';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
 import fetch from 'node-fetch';
@@ -12,6 +13,8 @@ const PORT = process.env.PORT || 3001;
 
 /** In production, serve the built React app from client/dist */
 const clientDist = path.join(__dirname, '..', 'client', 'dist');
+/** Client public folder for override images (joao-pedro.png, gabriel-magalhaes.png) – served by API so redirect/proxy issues are avoided */
+const clientPublic = path.join(__dirname, '..', 'client', 'public');
 const FPL_BASE = 'https://fantasy.premierleague.com/api';
 // 2025-26: PL CDN serves current-season player photos at this path (no season folder; they update in place)
 const PL_PHOTO_BASE = 'https://resources.premierleague.com/premierleague/photos/players/250x250';
@@ -89,6 +92,12 @@ const TEAM_NAME_TO_SEARCH = {
 
 /** Manual override for Gabriel Magalhaes (Arsenal): set env GABRIEL_MAGALHAES_PHOTO_URL to an image URL, or add client/public/gabriel-magalhaes.png */
 const GABRIEL_MAGALHAES_OVERRIDE_URL = process.env.GABRIEL_MAGALHAES_PHOTO_URL || null;
+/** FPL element code for Gabriel Magalhaes (Arsenal) – used when API returns only "Gabriel" so we still serve the correct image. */
+const GABRIEL_MAGALHAES_FPL_CODE = '226597';
+/** Manual override for João Pedro (Chelsea): add client/public/joao-pedro.png or set env JOAO_PEDRO_PHOTO_URL. */
+const JOAO_PEDRO_OVERRIDE_URL = process.env.JOAO_PEDRO_PHOTO_URL || null;
+/** FPL element code for João Pedro (Chelsea). */
+const JOAO_PEDRO_FPL_CODE = '475168';
 
 async function loadTeamIdToName() {
   if (teamIdToName.size > 0) return;
@@ -240,7 +249,11 @@ app.get('/api/player-photo', async (req, res) => {
   }
   const nameLower = name.toLowerCase();
   const teamLower = team.toLowerCase();
-  const isGabrielMagalhaes = nameLower.includes('gabriel') && nameLower.includes('magalhaes') && teamLower.includes('arsenal');
+  const nameNorm = nameLower.normalize('NFD').replace(/\p{Diacritic}/gu, '');
+  const isGabrielMagalhaes =
+    teamLower.includes('arsenal') &&
+    nameLower.includes('gabriel') &&
+    (nameNorm.includes('magalhaes') || code === GABRIEL_MAGALHAES_FPL_CODE);
 
   try {
     if (isGabrielMagalhaes) {
@@ -256,11 +269,53 @@ app.get('/api/player-photo', async (req, res) => {
           return;
         }
       }
-      res.redirect(302, '/gabriel-magalhaes.png');
+      const gabrielPath = path.join(clientPublic, 'gabriel-magalhaes.png');
+      try {
+        const buf = fs.readFileSync(gabrielPath);
+        res.set('Cache-Control', 'public, max-age=86400, must-revalidate');
+        res.set('Content-Type', 'image/png');
+        res.send(buf);
+        return;
+      } catch (_) {
+        res.redirect(302, '/gabriel-magalhaes.png');
+      }
       return;
     }
   } catch (err) {
     console.error('Gabriel Magalhaes photo override error:', err.message);
+  }
+
+  const isJoaoPedroChelsea =
+    code === JOAO_PEDRO_FPL_CODE ||
+    (teamLower.includes('chelsea') && nameNorm.includes('joao') && nameNorm.includes('pedro'));
+  try {
+    if (isJoaoPedroChelsea) {
+      if (JOAO_PEDRO_OVERRIDE_URL) {
+        const imgRes = await fetch(JOAO_PEDRO_OVERRIDE_URL, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FPLDashboard/1.0)' },
+        });
+        if (imgRes.ok) {
+          const contentType = imgRes.headers.get('content-type') || 'image/png';
+          res.set('Cache-Control', 'public, max-age=86400, must-revalidate');
+          res.set('Content-Type', contentType);
+          res.send(Buffer.from(await imgRes.arrayBuffer()));
+          return;
+        }
+      }
+      const joaoPath = path.join(clientPublic, 'joao-pedro.png');
+      try {
+        const buf = fs.readFileSync(joaoPath);
+        res.set('Cache-Control', 'public, max-age=86400, must-revalidate');
+        res.set('Content-Type', 'image/png');
+        res.send(buf);
+        return;
+      } catch (_) {
+        res.redirect(302, '/joao-pedro.png');
+      }
+      return;
+    }
+  } catch (err) {
+    console.error('João Pedro photo override error:', err.message);
   }
 
   const cacheKey = team ? `${team}:${name}` : name;
