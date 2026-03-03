@@ -54,7 +54,7 @@ export default function SearchBar({
       });
       setSearchResults(matches);
       if (matches.length === 0) {
-        setError('No teams found. Check team or manager name.');
+        setError('No teams found. Check team/ manager name or search by team ID.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');

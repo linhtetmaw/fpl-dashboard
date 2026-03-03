@@ -177,6 +177,118 @@ app.get(['/api/leagues-classic/:id/standings/', '/api/leagues-classic/:id/standi
   }
 });
 
+/** Build live points map: element id -> total_points from event live. */
+function buildLiveByElement(liveJson) {
+  const map = new Map();
+  const elements = liveJson?.elements ?? [];
+  for (const el of elements) {
+    if (el.id != null && el.stats?.total_points != null) {
+      map.set(el.id, el.stats.total_points);
+    }
+  }
+  return map;
+}
+
+/** Compute GW points from picks + live (includes chip: BB adds bench). Returns { chip, points }. */
+function computeGwPointsFromPicks(picksJson, liveByElement) {
+  const rawChip = picksJson?.chips?.[0]?.name ?? picksJson?.active_chip ?? null;
+  const chip = rawChip != null ? String(rawChip).trim() : null;
+  const picks = picksJson?.picks ?? [];
+  const chipLower = chip ? chip.toLowerCase() : '';
+  const isBboost = chipLower === 'bboost' || chipLower.includes('bench');
+  let sum = 0;
+  for (const pick of picks) {
+    const pts = (liveByElement.get(pick.element) ?? 0) * (pick.multiplier ?? 1);
+    if (isBboost || (pick.position != null && pick.position <= 11)) {
+      sum += pts;
+    }
+  }
+  return { chip, points: sum };
+}
+
+/** Max standings pages to fetch (safety cap; 50 teams per page). Fetches until has_next is false so all league members appear. */
+const STANDINGS_MAX_PAGES = 100;
+
+/** League standings with chip badge and correct event_total (chip + transfer deduction). Fetches all pages so every team in the league is visible. */
+app.get('/api/leagues-classic/:id/standings-with-chips', async (req, res) => {
+  const id = req.params.id;
+  const gw = Number(req.query.gw) || 1;
+  if (!/^\d+$/.test(id)) {
+    return res.status(400).json({ error: 'Invalid league id' });
+  }
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (compatible; FPLDashboard/1.0; +https://fantasy.premierleague.com)',
+  };
+  try {
+    const results = [];
+    let leagueInfo = null;
+    let hasNext = true;
+    for (let page = 1; hasNext && page <= STANDINGS_MAX_PAGES; page++) {
+      const standRes = await fetch(
+        `${FPL_BASE}/leagues-classic/${id}/standings/?page_standings=${page}`,
+        { headers }
+      );
+      if (!standRes.ok) {
+        return res.status(standRes.status).json({ error: `FPL API error ${standRes.status}` });
+      }
+      const pageData = await standRes.json();
+      if (pageData.league?.id != null && pageData.league?.name) {
+        addLeagueToIndex(pageData.league.id, pageData.league.name);
+        leagueInfo = pageData.league;
+      }
+      const pageResults = pageData.standings?.results ?? [];
+      results.push(...pageResults);
+      hasNext = (pageData.standings?.has_next ?? false) && pageResults.length === 50;
+      if (pageResults.length === 0) break;
+    }
+    const data = {
+      league: leagueInfo ?? { id: Number(id), name: `League ${id}` },
+      standings: { results, has_next: hasNext },
+    };
+    if (results.length === 0) {
+      return res.json(data);
+    }
+
+    const liveRes = await fetch(`${FPL_BASE}/event/${gw}/live/`, { headers });
+    const liveJson = liveRes.ok ? await liveRes.json() : null;
+    const liveByElement = buildLiveByElement(liveJson);
+    const hasLiveData = liveByElement.size > 0;
+
+    const CONCURRENCY = 10;
+    for (let i = 0; i < results.length; i += CONCURRENCY) {
+      const batch = results.slice(i, i + CONCURRENCY);
+      const picksAndHistory = await Promise.all(
+        batch.map(async (r) => {
+          try {
+            const [pickRes, histRes] = await Promise.all([
+              fetch(`${FPL_BASE}/entry/${r.entry}/event/${gw}/picks/`, { headers }),
+              fetch(`${FPL_BASE}/entry/${r.entry}/history/`, { headers }),
+            ]);
+            const pickData = pickRes.ok ? await pickRes.json() : null;
+            const histData = histRes.ok ? await histRes.json() : null;
+            const cur = (histData?.current ?? []).find((c) => c.event === gw);
+            const eventTransfersCost = cur?.event_transfers_cost != null ? Number(cur.event_transfers_cost) : 0;
+            const { chip, points } = computeGwPointsFromPicks(pickData, liveByElement);
+            const eventTotal = Math.max(0, points - eventTransfersCost);
+            const useComputed = hasLiveData && pickData?.picks?.length > 0;
+            return { chip, event_total: useComputed ? eventTotal : r.event_total };
+          } catch (_) {
+            return { chip: null, event_total: r.event_total };
+          }
+        })
+      );
+      batch.forEach((r, j) => {
+        r.chip = picksAndHistory[j].chip ?? null;
+        r.event_total = picksAndHistory[j].event_total;
+      });
+    }
+    res.json(data);
+  } catch (err) {
+    console.error('Standings-with-chips error:', err.message);
+    res.status(502).json({ error: 'Failed to fetch standings' });
+  }
+});
+
 /** Default league IDs to search when no league_id or league name is provided. Add more IDs as needed. */
 const DEFAULT_LEAGUE_IDS = [699005, 590677, 699083, 167];
 

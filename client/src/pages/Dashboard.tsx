@@ -1,49 +1,75 @@
 import { useSearchParams } from 'react-router-dom';
 import { useMemo, useRef, useEffect, useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
-import { useBootstrapStatic, useEntry, useTeamPicks, useEventLive, getCurrentEvent, computeTeamPointsSummary } from '../hooks/useFplApi';
-import SearchBar from '../components/SearchBar';
-import PlayersNews from '../components/PlayersNews';
+import { useBootstrapStatic, useEntry, useTeamPicks, useEventLive, useEntryHistory, getCurrentEvent, computeTeamPointsSummary } from '../hooks/useFplApi';
+import TeamSearchPage from './TeamSearchPage';
 import TeamSummary from '../components/TeamSummary';
 import PitchView from '../components/PitchView';
 import PlayersTable from '../components/PlayersTable';
 import LeagueSelector from '../components/LeagueSelector';
 
+const DEFAULT_LEAGUE_KEY = 'fpl_default_league';
+const TEAM_ID_KEY = 'fpl_team_id';
+
+function getDefaultLeagueId(): number | null {
+  if (typeof window === 'undefined') return null;
+  const s = sessionStorage.getItem(DEFAULT_LEAGUE_KEY);
+  const n = s ? parseInt(s, 10) : NaN;
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
+function getStoredTeamId(): number | null {
+  if (typeof window === 'undefined') return null;
+  const s = sessionStorage.getItem(TEAM_ID_KEY);
+  const n = s ? parseInt(s, 10) : NaN;
+  return Number.isInteger(n) && n > 0 ? n : null;
+}
+
 export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const queryClient = useQueryClient();
+  const teamFromStorage = getStoredTeamId();
   const teamIdParam = searchParams.get('team');
-  const teamId = teamIdParam ? parseInt(teamIdParam, 10) : null;
-  const validTeamId = teamId != null && !Number.isNaN(teamId) && teamId > 0 ? teamId : null;
+  const teamIdFromUrl = teamIdParam ? parseInt(teamIdParam, 10) : null;
+  const validTeamId = (teamFromStorage ?? teamIdFromUrl) ?? null;
+  const resolvedTeamId = validTeamId != null && !Number.isNaN(validTeamId) && validTeamId > 0 ? validTeamId : null;
+  const defaultLeagueId = getDefaultLeagueId();
 
-  const { data: bootstrap, isLoading: bootstrapLoading, error: bootstrapError, dataUpdatedAt: bootstrapUpdated } = useBootstrapStatic();
-  const { data: entry, isLoading: entryLoading, error: entryError } = useEntry(validTeamId);
+  useEffect(() => {
+    if (resolvedTeamId != null && teamIdParam != null && parseInt(teamIdParam, 10) === resolvedTeamId) {
+      sessionStorage.setItem(TEAM_ID_KEY, String(resolvedTeamId));
+    }
+  }, [resolvedTeamId, teamIdParam]);
+
+  const { data: bootstrap, error: bootstrapError } = useBootstrapStatic();
+  const { data: entry, isLoading: entryLoading, error: entryError } = useEntry(resolvedTeamId);
   const defaultGw = getCurrentEvent(bootstrap ?? undefined);
   const gwParam = searchParams.get('gw');
   const gameweek = gwParam ? parseInt(gwParam, 10) : (defaultGw ?? undefined);
   const effectiveGw = gameweek ?? defaultGw ?? 1;
 
-  const { data: picks, isLoading: picksLoading } = useTeamPicks(validTeamId, effectiveGw);
+  const { data: picks, isLoading: picksLoading } = useTeamPicks(resolvedTeamId, effectiveGw);
   const { data: live, isLoading: liveLoading } = useEventLive(effectiveGw);
+  const { data: entryHistory } = useEntryHistory(resolvedTeamId);
 
   const teamSummary = useMemo(() => {
-    if (!validTeamId || !bootstrap || !picks || !live) return null;
+    if (!resolvedTeamId || !bootstrap || !picks || !live) return null;
     return computeTeamPointsSummary(
-      validTeamId,
+      resolvedTeamId,
       effectiveGw,
       bootstrap,
       picks,
       live,
       entry?.name ?? null
     );
-  }, [validTeamId, effectiveGw, bootstrap, picks, live, entry?.name]);
+  }, [resolvedTeamId, effectiveGw, bootstrap, picks, live, entry?.name]);
+
+  const teamValue = useMemo(() => {
+    const cur = entryHistory?.current?.find((c) => c.event === effectiveGw);
+    return cur && typeof cur.value === 'number' ? cur.value : null;
+  }, [entryHistory, effectiveGw]);
 
   const handleSearch = (id: number) => {
+    sessionStorage.setItem(TEAM_ID_KEY, String(id));
     setSearchParams({ team: String(id) });
-  };
-
-  const handleRefresh = () => {
-    queryClient.invalidateQueries({ queryKey: ['fpl'] });
   };
 
   const handleGameweekChange = (gw: number) => {
@@ -55,7 +81,7 @@ export default function Dashboard() {
   };
 
   const events = bootstrap?.events ?? [];
-  const entryNotFound = validTeamId != null && !entryLoading && (entryError != null || !entry);
+  const entryNotFound = resolvedTeamId != null && !entryLoading && (entryError != null || !entry);
 
   const pitchWrapRef = useRef<HTMLDivElement>(null);
   const [pitchHeight, setPitchHeight] = useState<number | null>(null);
@@ -67,44 +93,19 @@ export default function Dashboard() {
     return () => ro.disconnect();
   }, [teamSummary]);
 
+  if (!resolvedTeamId) {
+    return <TeamSearchPage />;
+  }
+
   return (
-    <div className="min-h-screen bg-fpl-dark text-slate-200">
-      <header className="border-b border-fpl-border bg-fpl-card/50">
-        <div className="max-w-6xl mx-auto px-4 py-6">
-          <h1 className="text-2xl font-bold mb-1" style={{ color: '#f37025' }}>FPL HOUSE</h1>
-          <p className="text-slate-400 text-sm">
-            Search by <strong>League + Team name</strong> or <strong>Team ID</strong> to view your team and leagues.
-          </p>
-          <div className="mt-4 flex flex-col sm:flex-row sm:items-end gap-3">
-            <div className="flex-1">
-              <SearchBar
-                onSearch={handleSearch}
-                isLoading={entryLoading && validTeamId != null}
-                defaultValue={validTeamId}
-              />
-            </div>
-            {validTeamId != null && (
-              <button
-                type="button"
-                onClick={handleRefresh}
-                className="px-4 py-2.5 rounded-lg border border-fpl-border text-slate-300 hover:bg-fpl-card hover:border-fpl-accent/50 text-sm font-medium transition-colors"
-              >
-                Refresh data
-              </button>
-            )}
+    <>
+      {entryNotFound && (
+        <div className="max-w-6xl mx-auto px-4 pt-4">
+          <div className="px-4 py-2 rounded-lg bg-rose-500/20 text-rose-300 text-sm">
+            No team found for ID {resolvedTeamId}. Check the ID and try again.
           </div>
-          {validTeamId != null && bootstrapUpdated != null && (
-            <p className="mt-2 text-slate-500 text-xs">
-              Search Your Team.
-            </p>
-          )}
-          {entryNotFound && (
-            <div className="mt-3 px-4 py-2 rounded-lg bg-rose-500/20 text-rose-300 text-sm">
-              No team found for ID {validTeamId}. Check the ID and try again.
-            </div>
-          )}
         </div>
-      </header>
+      )}
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {bootstrapError && (
@@ -113,20 +114,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {!validTeamId && (
-          <>
-            <PlayersNews bootstrap={bootstrap ?? undefined} isLoading={bootstrapLoading} />
-            <div className="text-center py-16 text-slate-500 mt-6">
-              {bootstrapLoading ? (
-                <p>Loading…</p>
-              ) : (
-                <p>Enter your FPL Team ID above to get started.</p>
-              )}
-            </div>
-          </>
-        )}
-
-        {validTeamId && entry && (
+        {entry && (
           <>
             <TeamSummary
               teamName={entry.name}
@@ -136,6 +124,8 @@ export default function Dashboard() {
               events={events}
               onGameweekChange={handleGameweekChange}
               summary={teamSummary}
+              gwNetTotal={teamSummary ? (teamSummary.chip === 'bboost' ? teamSummary.total_points : teamSummary.starting_points) : null}
+              teamValue={teamValue}
               isLoading={picksLoading || liveLoading}
             />
 
@@ -148,15 +138,18 @@ export default function Dashboard() {
                       <PitchView players={teamSummary.players} bootstrap={bootstrap ?? undefined} />
                     </div>
                     <div
-                      className="lg:w-[420px] lg:flex-shrink-0 lg:min-h-0 lg:overflow-hidden"
-                      style={pitchHeight != null ? { height: pitchHeight, maxHeight: '70vh' } : undefined}
+                      className="lg:w-[480px] lg:flex-shrink-0 lg:min-h-0 lg:overflow-hidden"
+                      style={pitchHeight != null ? { height: pitchHeight, maxHeight: '85vh' } : undefined}
                     >
                       <h2 className="text-lg font-semibold text-white mb-3">Leagues</h2>
                       <LeagueSelector
                         leagues={entry.leagues?.classic ?? []}
-                        teamId={validTeamId}
+                        teamId={resolvedTeamId}
                         bootstrap={bootstrap ?? undefined}
                         onTeamClick={handleSearch}
+                        initialLeagueId={defaultLeagueId}
+                        gameweek={effectiveGw}
+                        currentUserChip={teamSummary?.chip ?? null}
                       />
                     </div>
                   </div>
@@ -165,14 +158,11 @@ export default function Dashboard() {
                   <h2 className="text-lg font-semibold text-white mb-3">Player breakdown</h2>
                   <PlayersTable players={teamSummary.players} />
                 </section>
-                <section className="mt-8 h-[50vh] min-h-[280px] max-h-[520px] flex flex-col">
-                  <PlayersNews bootstrap={bootstrap ?? undefined} isLoading={bootstrapLoading} />
-                </section>
               </>
             )}
           </>
         )}
       </main>
-    </div>
+    </>
   );
 }

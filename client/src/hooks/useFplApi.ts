@@ -13,6 +13,7 @@ import {
   getEventLive,
   getEntryHistory,
   getLeagueStandings,
+  getFixtures,
 } from '../api/fpl';
 
 const BOOTSTRAP_QUERY_KEY = ['fpl', 'bootstrap-static'] as const;
@@ -70,6 +71,17 @@ export function useLeagueStandings(leagueId: number | null, page: number) {
   });
 }
 
+const FIXTURES_QUERY_KEY = ['fpl', 'fixtures'] as const;
+
+export function useFixtures(gameweek: number | null) {
+  return useQuery({
+    queryKey: [...FIXTURES_QUERY_KEY, gameweek],
+    queryFn: () => getFixtures(gameweek ?? undefined),
+    enabled: gameweek != null && gameweek > 0,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
 export function computeTeamPointsSummary(
   teamId: number,
   gameweek: number,
@@ -92,7 +104,7 @@ export function computeTeamPointsSummary(
     if (el.id != null && el.stats) liveByElement[el.id] = el.stats;
   });
 
-  const chip = picks.chips?.[0]?.name ?? null;
+  const chip = picks.chips?.[0]?.name ?? picks.active_chip ?? null;
   const players: PlayerPoints[] = [];
   let total_points = 0;
   let starting_points = 0;

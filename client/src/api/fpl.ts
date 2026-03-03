@@ -31,6 +31,12 @@ export async function getEventLive(gameweek: number) {
   return fetchApi<import('../types/fpl').EventLiveResponse>(`${API_BASE}/event/${gameweek}/live/`);
 }
 
+/** Fixtures for a gameweek (or all if gameweek not provided). */
+export async function getFixtures(gameweek?: number) {
+  const params = gameweek != null ? { event: gameweek } : undefined;
+  return fetchApi<import('../types/fpl').FplFixture[]>(`${API_BASE}/fixtures/`, params);
+}
+
 export async function getEntryHistory(teamId: number) {
   return fetchApi<import('../types/fpl').EntryHistoryResponse>(
     `${API_BASE}/entry/${teamId}/history/`
@@ -41,6 +47,18 @@ export async function getLeagueStandings(leagueId: number, page = 1) {
   return fetchApi<import('../types/fpl').LeagueStandingsResponse>(
     `${API_BASE}/leagues-classic/${leagueId}/standings/`,
     { page_standings: page }
+  );
+}
+
+/** League standings with chip badge per team for the given gameweek. */
+export async function getLeagueStandingsWithChips(
+  leagueId: number,
+  page: number,
+  gameweek: number
+) {
+  return fetchApi<import('../types/fpl').LeagueStandingsResponse>(
+    `${API_BASE}/leagues-classic/${leagueId}/standings-with-chips`,
+    { page_standings: page, gw: gameweek }
   );
 }
 

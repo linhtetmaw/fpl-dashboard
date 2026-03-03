@@ -1,14 +1,15 @@
 #!/usr/bin/env node
 /**
- * Seed the search index by fetching Overall league standings from FPL API.
+ * Seed the search index by fetching league standings from FPL API.
  * Run once (or periodically) to have many teams searchable by name without needing team ID.
  *
  * Usage:
- *   node seed-search-index.js [maxPages]   Top of league only (default 2000 pages = 100k teams)
- *   node seed-search-index.js stratified   Sample from several rank ranges (~50k teams from top/mid/lower)
+ *   node seed-search-index.js [maxPages]       Overall league, top only (default 2000 pages = 100k teams)
+ *   node seed-search-index.js stratified        Overall league, sample from several rank ranges
+ *   node seed-search-index.js league <id>       Fetch ALL pages of a specific league (e.g. 167 = Myanmar)
  *
- * FPL has millions of managers; most ranks are in the millions. "stratified" pulls from
- * high page numbers too so some mid/lower-ranked teams get into the index.
+ * League 167 (Myanmar) contains all teams from league 699005 (Soccer House League). Seeding
+ * "league 167" stores every team in Myanmar so they are findable in search.
  */
 
 import fs from 'fs';
@@ -22,7 +23,10 @@ const OVERALL_LEAGUE_ID = 314;
 const BATCH_SIZE = 10;
 
 const arg = process.argv[2];
+const arg2 = process.argv[3];
 const isStratified = String(arg || '').toLowerCase() === 'stratified';
+const isLeagueMode = String(arg || '').toLowerCase() === 'league' && arg2;
+const leagueIdToSeed = isLeagueMode ? parseInt(arg2, 10) : null;
 const maxPages = isStratified
   ? 0
   : Math.min(parseInt(arg || '2000', 10) || 2000, 5000);
@@ -57,17 +61,18 @@ function saveIndex(entries) {
   console.log('Saved', list.length, 'teams to', INDEX_PATH);
 }
 
-async function fetchPage(page) {
-  const url = `https://fantasy.premierleague.com/api/leagues-classic/${OVERALL_LEAGUE_ID}/standings/?page_standings=${page}`;
+async function fetchPage(leagueId, page) {
+  const url = `https://fantasy.premierleague.com/api/leagues-classic/${leagueId}/standings/?page_standings=${page}`;
   const res = await fetch(url, {
     headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FPLDashboard/1.0)' },
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const data = await res.json();
-  return { page, results: data.standings?.results ?? [] };
+  return { page, results: data.standings?.results ?? [], has_next: data.standings?.has_next ?? false };
 }
 
 function getPagesToFetch() {
+  if (isLeagueMode) return null;
   if (isStratified) {
     const pages = [];
     for (const range of STRATIFIED_RANGES) {
@@ -79,24 +84,43 @@ function getPagesToFetch() {
 }
 
 async function main() {
+  const map = loadExisting();
+  console.log('Existing entries:', map.size);
+
+  if (isLeagueMode && leagueIdToSeed) {
+    console.log('Seeding search index: league ' + leagueIdToSeed + ' (all pages)');
+    let page = 1;
+    let totalFetched = 0;
+    const maxPagesCap = 200;
+    while (page <= maxPagesCap) {
+      const { results: entries, has_next } = await fetchPage(leagueIdToSeed, page);
+      for (const r of entries) {
+        map.set(r.entry, { entry: r.entry, entry_name: r.entry_name, player_name: r.player_name || '' });
+      }
+      totalFetched += entries.length;
+      console.log('Page ' + page + ': +' + entries.length + ' teams | Index size: ' + map.size);
+      saveIndex(map);
+      if (!has_next || entries.length < 50) break;
+      page++;
+    }
+    console.log('Done. Fetched ' + totalFetched + ' teams from league ' + leagueIdToSeed + '. Index size:', map.size);
+    return;
+  }
+
   const pagesToFetch = getPagesToFetch();
   console.log(
     isStratified
       ? 'Seeding search index: stratified (top + mid + lower ranks), ' + pagesToFetch.length + ' pages'
       : 'Seeding search index: Overall league, up to ' + maxPages + ' pages (~' + maxPages * 50 + ' teams)'
   );
-  const map = loadExisting();
-  console.log('Existing entries:', map.size);
 
-  let done = 0;
   for (let i = 0; i < pagesToFetch.length; i += BATCH_SIZE) {
     const batch = pagesToFetch.slice(i, i + BATCH_SIZE);
-    const results = await Promise.all(batch.map((p) => fetchPage(p)));
-    for (const { page, results: entries } of results) {
+    const results = await Promise.all(batch.map((p) => fetchPage(OVERALL_LEAGUE_ID, p)));
+    for (const { results: entries } of results) {
       for (const r of entries) {
         map.set(r.entry, { entry: r.entry, entry_name: r.entry_name, player_name: r.player_name || '' });
       }
-      done += entries.length;
     }
     if ((i + batch.length) % 200 < BATCH_SIZE || i + batch.length >= pagesToFetch.length) {
       console.log('Fetched ' + (i + batch.length) + '/' + pagesToFetch.length + ' pages | Total in index:', map.size);

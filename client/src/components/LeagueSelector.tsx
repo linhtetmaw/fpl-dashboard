@@ -8,15 +8,29 @@ interface LeagueSelectorProps {
   teamId: number;
   bootstrap: BootstrapStatic | undefined;
   onTeamClick?: (entryId: number) => void;
+  /** Default league to select (e.g. from session). */
+  initialLeagueId?: number | null;
+  /** Current gameweek (for fetching chip badges for all teams in standings). */
+  gameweek: number;
+  /** Current user's chip this GW (fallback badge when API doesn't return chips). */
+  currentUserChip?: string | null;
 }
 
-export default function LeagueSelector({ leagues, teamId, bootstrap, onTeamClick }: LeagueSelectorProps) {
-  const [selectedId, setSelectedId] = useState<number | null>(leagues[0]?.id ?? null);
+export default function LeagueSelector({ leagues, teamId, bootstrap, onTeamClick, initialLeagueId, gameweek, currentUserChip }: LeagueSelectorProps) {
+  const preferredInitial =
+    leagues.length && initialLeagueId != null && leagues.some((l) => l.id === initialLeagueId)
+      ? initialLeagueId
+      : leagues[0]?.id ?? null;
+  const [selectedId, setSelectedId] = useState<number | null>(preferredInitial);
 
   useEffect(() => {
-    const firstId = leagues[0]?.id ?? null;
-    setSelectedId((prev) => (leagues.some((l) => l.id === prev) ? prev : firstId));
-  }, [leagues]);
+    if (!leagues.length) return;
+    const firstId = leagues[0].id;
+    const preferred = initialLeagueId != null && leagues.some((l) => l.id === initialLeagueId)
+      ? initialLeagueId
+      : firstId;
+    setSelectedId((prev) => (leagues.some((l) => l.id === prev) ? prev : preferred));
+  }, [leagues, initialLeagueId]);
 
   if (!leagues.length) {
     return (
@@ -50,6 +64,8 @@ export default function LeagueSelector({ leagues, teamId, bootstrap, onTeamClick
             teamId={teamId}
             bootstrap={bootstrap}
             onTeamClick={onTeamClick}
+            gameweek={gameweek}
+            currentUserChip={currentUserChip}
           />
         </div>
       )}

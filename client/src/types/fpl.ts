@@ -40,6 +40,20 @@ export interface FplTeam {
   name: string;
 }
 
+/** Single fixture from FPL API (fixtures endpoint, optional ?event=GW). */
+export interface FplFixture {
+  id: number;
+  event: number;
+  kickoff_time: string;
+  team_h: number;
+  team_a: number;
+  team_h_score: number | null;
+  team_a_score: number | null;
+  finished: boolean;
+  team_h_difficulty?: number;
+  team_a_difficulty?: number;
+}
+
 export interface EntryResponse {
   id: number;
   name: string;
@@ -67,6 +81,8 @@ export interface ClassicLeague {
 export interface PicksResponse {
   picks: Pick[];
   chips?: { name: string }[];
+  /** Set when a chip is active this GW (e.g. "bboost", "3xc"). */
+  active_chip?: string | null;
 }
 
 export interface Pick {
@@ -91,7 +107,14 @@ export interface LiveStats {
 }
 
 export interface EntryHistoryResponse {
-  current: { event: number; points: number }[];
+  /** Per-gameweek data; points = official GW score (includes chip, after transfer deduction). value = team value * 10. */
+  current: {
+    event: number;
+    points: number;
+    value?: number;
+    /** Points deducted for extra transfers (e.g. -4 per hit). Already reflected in points. */
+    event_transfers_cost?: number;
+  }[];
 }
 
 export interface LeagueStandingsResponse {
@@ -113,6 +136,8 @@ export interface StandingEntry {
   total: number;
   event_total: number;
   movement: string;
+  /** Chip used this GW (from standings-with-chips endpoint). */
+  chip?: string | null;
 }
 
 /** Result from search-by-league (StandingEntry + league info). */
@@ -151,4 +176,4 @@ export interface TeamPointsSummary {
   players: PlayerPoints[];
 }
 
-export type LeagueSortBy = 'event_total' | 'total' | 'monthly';
+export type LeagueSortBy = 'event_total' | 'total' | 'monthly' | 'team_value';
