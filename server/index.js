@@ -15,16 +15,107 @@ const clientDist = path.join(__dirname, '..', 'client', 'dist');
 const FPL_BASE = 'https://fantasy.premierleague.com/api';
 // 2025-26: PL CDN serves current-season player photos at this path (no season folder; they update in place)
 const PL_PHOTO_BASE = 'https://resources.premierleague.com/premierleague/photos/players/250x250';
-// Club badges (crests) – optional fallback
-const PL_BADGE_BASE = 'https://resources.premierleague.com/premierleague/badges';
-// TheSportsDB free API – often more up-to-date player photos than PL CDN (free key 123, 30 req/min)
+// TheSportsDB for badges (PL CDN badge IDs do not match FPL team IDs – causes wrong logos)
 const THESPORTSDB_API = 'https://www.thesportsdb.com/api/v1/json/123';
 
 /** In-memory cache: player query -> image URL (from TheSportsDB) to avoid repeated API calls. */
 const playerPhotoCache = new Map();
 
+/** Cache: FPL team id -> TheSportsDB badge URL. */
+const badgeUrlCache = new Map();
+
+/** FPL team id -> team name (from bootstrap). Populated at startup and on first badge request. */
+let teamIdToName = new Map();
+
+/** Fallback when bootstrap not yet loaded: common FPL team IDs (season-dependent). */
+const FALLBACK_TEAM_NAMES = {
+  1: 'Arsenal',
+  2: 'Aston Villa',
+  3: 'Bournemouth',
+  4: 'Brentford',
+  5: 'Brighton and Hove Albion',
+  6: 'Chelsea',
+  7: 'Crystal Palace',
+  8: 'Everton',
+  9: 'Fulham',
+  10: 'Liverpool',
+  11: 'Luton Town',
+  12: 'Manchester City',
+  13: 'Manchester United',
+  14: 'Newcastle United',
+  15: 'Nottingham Forest',
+  16: 'Southampton',
+  17: 'Tottenham Hotspur',
+  18: 'West Ham United',
+  19: 'Wolverhampton Wanderers',
+  20: 'Ipswich Town',
+};
+
+/** FPL team name -> TheSportsDB search name (searchteams.php). Ensures correct badge per team. */
+const TEAM_NAME_TO_SEARCH = {
+  'Arsenal': 'Arsenal',
+  'Aston Villa': 'Aston Villa',
+  'Bournemouth': 'Bournemouth',
+  'Brentford': 'Brentford',
+  'Brighton and Hove Albion': 'Brighton and Hove Albion',
+  'Brighton': 'Brighton and Hove Albion',
+  'Chelsea': 'Chelsea',
+  'Crystal Palace': 'Crystal Palace',
+  'Everton': 'Everton',
+  'Fulham': 'Fulham',
+  'Ipswich Town': 'Ipswich Town',
+  'Liverpool': 'Liverpool',
+  'Luton Town': 'Luton Town',
+  'Manchester City': 'Manchester City',
+  'Man City': 'Manchester City',
+  'Manchester United': 'Manchester United',
+  'Man Utd': 'Manchester United',
+  'Newcastle United': 'Newcastle United',
+  'Newcastle': 'Newcastle United',
+  'Nottingham Forest': 'Nottingham Forest',
+  "Nott'm Forest": 'Nottingham Forest',
+  'Southampton': 'Southampton',
+  'Tottenham Hotspur': 'Tottenham Hotspur',
+  'Spurs': 'Tottenham Hotspur',
+  'Tottenham': 'Tottenham Hotspur',
+  'West Ham United': 'West Ham United',
+  'West Ham': 'West Ham United',
+  'Wolverhampton Wanderers': 'Wolverhampton Wanderers',
+  'Wolves': 'Wolverhampton Wanderers',
+  'Leeds United': 'Leeds United',
+  'Leeds': 'Leeds United',
+  'Burnley': 'Burnley',
+};
+
+/** Manual override for Gabriel Magalhaes (Arsenal): set env GABRIEL_MAGALHAES_PHOTO_URL to an image URL, or add client/public/gabriel-magalhaes.png */
+const GABRIEL_MAGALHAES_OVERRIDE_URL = process.env.GABRIEL_MAGALHAES_PHOTO_URL || null;
+
+async function loadTeamIdToName() {
+  if (teamIdToName.size > 0) return;
+  try {
+    const res = await fetch(`${FPL_BASE}/bootstrap-static/`, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FPL-Dashboard/1.0)' },
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const teams = data.teams || [];
+    const map = new Map();
+    teams.forEach((t) => {
+      if (t.id != null && t.name) map.set(Number(t.id), t.name);
+    });
+    if (map.size > 0) teamIdToName = map;
+  } catch (err) {
+    console.error('Bootstrap for team names:', err.message);
+  }
+}
+
 loadIndex();
 loadLeagueIndex();
+
+badgeUrlCache.clear();
+loadTeamIdToName().then(() => {
+  console.log('Bootstrap loaded for badges: team id→name from FPL API');
+}).catch(() => {});
 
 app.use(cors());
 app.use(express.json());
@@ -63,24 +154,69 @@ app.get('/api/photo/:code', async (req, res) => {
   }
 });
 
-/** Proxy club badge (crest) images; use for pitch view as up-to-date team identity. */
+/** Normalize team name for TheSportsDB match (lowercase, trim). */
+function normForBadgeMatch(name) {
+  if (!name || typeof name !== 'string') return '';
+  return name.toLowerCase().trim();
+}
+
+/** Fetch TheSportsDB badge URL for a team name; cache by teamId. Uses EPL filter and name match so the correct badge is returned. */
+async function getTheSportsDBBadgeUrl(teamId, teamName) {
+  const cached = badgeUrlCache.get(teamId);
+  if (cached) return cached;
+  const searchName = TEAM_NAME_TO_SEARCH[teamName] || teamName;
+  try {
+    const url = `${THESPORTSDB_API}/searchteams.php?t=${encodeURIComponent(searchName)}`;
+    const apiRes = await fetch(url, {
+      headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FPL-Dashboard/1.0)' },
+    });
+    if (!apiRes.ok) return null;
+    const data = await apiRes.json();
+    const teams = data.teams;
+    if (!Array.isArray(teams) || teams.length === 0) return null;
+    const epl = teams.filter((t) => t.strLeague === 'English Premier League');
+    const list = epl.length > 0 ? epl : teams;
+    const searchNorm = normForBadgeMatch(searchName);
+    const team =
+      list.find((t) => normForBadgeMatch(t.strTeam) === searchNorm) ||
+      list.find((t) => normForBadgeMatch(t.strTeam).includes(searchNorm) || searchNorm.includes(normForBadgeMatch(t.strTeam))) ||
+      list[0];
+    const badgeUrl = team.strBadge || null;
+    if (badgeUrl) badgeUrlCache.set(teamId, badgeUrl);
+    return badgeUrl;
+  } catch (err) {
+    console.error('TheSportsDB badge lookup:', err.message);
+    return null;
+  }
+}
+
+/** Proxy club badge (crest) images. Always use TheSportsDB by team name – use only FPL bootstrap id→name (no fallback) so badges match correctly. */
 app.get('/api/badge/:teamId', async (req, res) => {
   const teamId = req.params.teamId;
   if (!/^\d+$/.test(teamId)) {
     return res.status(400).send('Invalid team id');
   }
+  const id = Number(teamId);
+  const ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
   try {
-    const response = await fetch(`${PL_BADGE_BASE}/t${teamId}.png`, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      },
-    });
-    if (!response.ok) {
-      return res.status(response.status).send();
+    await loadTeamIdToName();
+    const teamName = teamIdToName.get(id) ?? (teamIdToName.size === 0 ? FALLBACK_TEAM_NAMES[id] : null);
+    if (!teamName) {
+      return res.status(404).send();
     }
-    res.set('Cache-Control', 'public, max-age=86400, must-revalidate');
-    res.set('Content-Type', 'image/png');
-    const buf = await response.arrayBuffer();
+    const badgeUrl = await getTheSportsDBBadgeUrl(id, teamName);
+    if (!badgeUrl) {
+      return res.status(404).send();
+    }
+    const imgRes = await fetch(badgeUrl, { headers: { 'User-Agent': ua } });
+    if (!imgRes.ok) {
+      return res.status(502).send();
+    }
+    res.set('Cache-Control', 'public, max-age=3600, must-revalidate');
+    const contentType = imgRes.headers.get('content-type') || 'image/png';
+    res.set('Content-Type', contentType);
+    const buf = await imgRes.arrayBuffer();
     res.send(Buffer.from(buf));
   } catch (err) {
     console.error('Badge proxy error:', err.message);
@@ -88,23 +224,64 @@ app.get('/api/badge/:teamId', async (req, res) => {
   }
 });
 
-/** Player photo: try TheSportsDB first (often more up-to-date), then fall back to PL CDN. Query: name (e.g. Bukayo_Saka), optional code (FPL element code for PL fallback). */
+/** Normalize team name for matching (lowercase, strip "fc" etc.). */
+function normalizeTeamForMatch(teamStr) {
+  if (!teamStr || typeof teamStr !== 'string') return '';
+  return teamStr.toLowerCase().replace(/\s*fc\s*$/i, '').trim();
+}
+
+/** Player photo: try TheSportsDB first (filter by team so e.g. Gabriel Magalhaes at Arsenal is correct), then fall back to PL CDN. */
 app.get('/api/player-photo', async (req, res) => {
   const name = String(req.query.name ?? '').trim().replace(/\s+/g, '_');
   const code = req.query.code != null ? String(req.query.code).replace(/\D/g, '') : '';
+  const team = String(req.query.team ?? '').trim();
   if (!name && !code) {
     return res.status(400).send('Missing name or code');
   }
+  const nameLower = name.toLowerCase();
+  const teamLower = team.toLowerCase();
+  const isGabrielMagalhaes = nameLower.includes('gabriel') && nameLower.includes('magalhaes') && teamLower.includes('arsenal');
+
+  try {
+    if (isGabrielMagalhaes) {
+      if (GABRIEL_MAGALHAES_OVERRIDE_URL) {
+        const imgRes = await fetch(GABRIEL_MAGALHAES_OVERRIDE_URL, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FPLDashboard/1.0)' },
+        });
+        if (imgRes.ok) {
+          const contentType = imgRes.headers.get('content-type') || 'image/png';
+          res.set('Cache-Control', 'public, max-age=86400, must-revalidate');
+          res.set('Content-Type', contentType);
+          res.send(Buffer.from(await imgRes.arrayBuffer()));
+          return;
+        }
+      }
+      res.redirect(302, '/gabriel-magalhaes.png');
+      return;
+    }
+  } catch (err) {
+    console.error('Gabriel Magalhaes photo override error:', err.message);
+  }
+
+  const cacheKey = team ? `${team}:${name}` : name;
   try {
     if (name) {
-      let imageUrl = playerPhotoCache.get(name);
+      let imageUrl = playerPhotoCache.get(cacheKey);
       if (!imageUrl) {
-        const apiRes = await fetch(`${THESPORTSDB_API}/searchplayers.php?p=${encodeURIComponent(name)}`);
+        const apiRes = await fetch(`${THESPORTSDB_API}/searchplayers.php?p=${encodeURIComponent(name.replace(/_/g, ' '))}`);
         if (apiRes.ok) {
           const data = await apiRes.json();
-          const player = data.players?.[0] ?? data.player?.[0];
+          const list = data.players ?? data.player ?? [];
+          const arr = Array.isArray(list) ? list : [list];
+          const teamNorm = normalizeTeamForMatch(team);
+          const player = teamNorm
+            ? arr.find((p) => {
+                const t = normalizeTeamForMatch(p?.strTeam ?? '');
+                return t && (t.includes(teamNorm) || teamNorm.includes(t));
+              }) ?? arr[0]
+            : arr[0];
           imageUrl = player?.strCutout || player?.strThumb || null;
-          if (imageUrl) playerPhotoCache.set(name, imageUrl);
+          if (imageUrl) playerPhotoCache.set(cacheKey, imageUrl);
         }
       }
       if (imageUrl) {
@@ -449,6 +626,12 @@ try {
   }
 } catch (_) {}
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`FPL proxy running at http://localhost:${PORT}`);
+});
+
+server.on('error', (err) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`\nPort ${PORT} is already in use. Either:\n  1. Stop the other process: lsof -ti:${PORT} | xargs kill\n  2. Or use another port: PORT=3002 npm run dev\n`);
+  }
 });

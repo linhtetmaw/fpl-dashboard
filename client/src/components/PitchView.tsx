@@ -18,13 +18,17 @@ function getPlayerPhotoQuery(element: FplElement | undefined): { name: string; c
   return { name: name || '', code };
 }
 
-/** Player photo URL: TheSportsDB first (often more up-to-date), server falls back to PL CDN. */
-function getPlayerImageUrl(element: FplElement | undefined): string | null {
+/** Player photo URL: TheSportsDB first (with team so we get the right player, e.g. Gabriel Magalhaes at Arsenal), server falls back to PL CDN. */
+function getPlayerImageUrl(
+  element: FplElement | undefined,
+  teamName: string | undefined
+): string | null {
   const q = getPlayerPhotoQuery(element);
   if (!q || (!q.name && !q.code)) return null;
   const params = new URLSearchParams();
   if (q.name) params.set('name', q.name);
   if (q.code) params.set('code', q.code);
+  if (teamName?.trim()) params.set('team', teamName.trim());
   return `/api/player-photo?${params.toString()}`;
 }
 
@@ -54,6 +58,9 @@ export default function PitchView({ players, bootstrap }: PitchViewProps) {
   const elementById = new Map<number, FplElement>(
     (bootstrap?.elements ?? []).map((e) => [e.id, e])
   );
+  const teamById = new Map<number, string>(
+    (bootstrap?.teams ?? []).map((t) => [t.id, t.name])
+  );
 
   const bench = getBenchPlayers(players);
 
@@ -72,7 +79,8 @@ export default function PitchView({ players, bootstrap }: PitchViewProps) {
       maxNameWidth = 'max-w-[72px]',
     } = opts;
     const element = elementById.get(p.element_id);
-    const imageUrl = getPlayerImageUrl(element);
+    const teamName = element ? teamById.get(element.team) : undefined;
+    const imageUrl = getPlayerImageUrl(element, teamName);
     return (
       <div key={`${p.element_id}-${p.position}`} className={cardBoxClass}>
         <div

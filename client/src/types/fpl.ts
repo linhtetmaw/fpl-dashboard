@@ -33,6 +33,20 @@ export interface FplElement {
   chance_of_playing_this_round?: number | null;
   /** Status: a=available, d=doubtful, i=injured, s=suspended, u=unknown. */
   status?: string;
+  /** Transfers in for the current/latest gameweek (bootstrap-static). */
+  transfers_in_event?: number;
+  /** Transfers out for the current/latest gameweek (bootstrap-static). */
+  transfers_out_event?: number;
+  /** Current price in tenths (e.g. 60 = 6.0). */
+  now_cost?: number;
+  /** Percentage of managers who own the player (e.g. "34.2"). */
+  selected_by_percent?: string;
+  /** Form value (e.g. "3.2"). */
+  form?: string;
+  /** Rank by selection (1 = most selected). */
+  selected_rank?: number;
+  /** Total FPL points this season. */
+  total_points?: number;
 }
 
 export interface FplTeam {

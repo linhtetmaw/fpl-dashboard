@@ -23,11 +23,12 @@ const LIVE_QUERY_KEY = ['fpl', 'live'] as const;
 const HISTORY_QUERY_KEY = ['fpl', 'history'] as const;
 const STANDINGS_QUERY_KEY = ['fpl', 'standings'] as const;
 
+/** Bootstrap (players, teams, events, transfer counts) cached 24h; refresh follows this cycle. */
 export function useBootstrapStatic() {
   return useQuery({
     queryKey: BOOTSTRAP_QUERY_KEY,
     queryFn: getBootstrapStatic,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 24 * 60 * 60 * 1000,
   });
 }
 
@@ -78,6 +79,15 @@ export function useFixtures(gameweek: number | null) {
     queryKey: [...FIXTURES_QUERY_KEY, gameweek],
     queryFn: () => getFixtures(gameweek ?? undefined),
     enabled: gameweek != null && gameweek > 0,
+    staleTime: 2 * 60 * 1000,
+  });
+}
+
+/** All fixtures (no event filter); for FDR table. */
+export function useAllFixtures() {
+  return useQuery({
+    queryKey: [...FIXTURES_QUERY_KEY, 'all'],
+    queryFn: () => getFixtures(),
     staleTime: 2 * 60 * 1000,
   });
 }

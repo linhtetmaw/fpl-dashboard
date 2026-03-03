@@ -6,8 +6,12 @@
     "install:all": "cd server && npm install && cd ../client && npm install",
     "build": "npm run install:all && cd client && npm run build",
     "start": "node server/index.js",
+    "dev": "concurrently \"npm run server\" \"npm run client\"",
     "server": "cd server && npm run dev",
     "client": "cd client && npm run dev",
     "preview": "cd client && npm run preview"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.0"
   }
 }
