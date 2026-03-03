@@ -33,7 +33,7 @@ function useCountdown(deadline: Date | null): { d: number; h: number; m: number;
 
 function hasStoredTeam(): boolean {
   if (typeof window === 'undefined') return false;
-  const s = sessionStorage.getItem(TEAM_ID_KEY);
+  const s = localStorage.getItem(TEAM_ID_KEY);
   const n = s ? parseInt(s, 10) : NaN;
   return Number.isInteger(n) && n > 0;
 }
@@ -45,12 +45,17 @@ export default function AppLayout() {
   const nextDeadline = useNextDeadline();
   const countdown = useCountdown(nextDeadline);
 
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const handleRefresh = () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
     queryClient.invalidateQueries({ queryKey: ['fpl'] });
+    setTimeout(() => setIsRefreshing(false), 1000);
   };
 
   const handleChangeTeam = () => {
-    sessionStorage.removeItem(TEAM_ID_KEY);
+    localStorage.removeItem(TEAM_ID_KEY);
     setSearchParams({});
   };
 
@@ -68,9 +73,17 @@ export default function AppLayout() {
                 <button
                   type="button"
                   onClick={handleRefresh}
-                  className="px-4 py-2.5 rounded-lg border border-fpl-border text-slate-300 hover:bg-fpl-card hover:border-fpl-accent/50 text-sm font-medium transition-colors"
+                  disabled={isRefreshing}
+                  className="px-4 py-2.5 rounded-lg border border-fpl-border text-slate-300 hover:bg-fpl-card hover:border-fpl-accent/50 text-sm font-medium transition-colors inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
                 >
-                  Refresh data
+                  {isRefreshing ? (
+                    <>
+                      <span className="inline-block w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" aria-hidden />
+                      <span>Refreshing…</span>
+                    </>
+                  ) : (
+                    'Refresh data'
+                  )}
                 </button>
                 <button
                   type="button"

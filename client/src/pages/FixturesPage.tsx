@@ -188,7 +188,7 @@ export default function FixturesPage() {
               id="fixtures-gw-select"
               value={effectiveGw}
               onChange={(e) => handleGameweekChange(Number(e.target.value))}
-              className="px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
+              className="select-arrow-white px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
             >
               {events.length === 0 ? (
                 <option value={effectiveGw}>Gameweek {effectiveGw}</option>
@@ -204,7 +204,7 @@ export default function FixturesPage() {
               id="fixtures-tz-select"
               value={timezone}
               onChange={(e) => handleTimezoneChange(e.target.value)}
-              className="px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
+              className="select-arrow-white px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
             >
               {TIMEZONES.map((tz) => (
                 <option key={tz.value} value={tz.value}>

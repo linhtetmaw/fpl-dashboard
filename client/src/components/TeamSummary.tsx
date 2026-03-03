@@ -52,7 +52,7 @@ export default function TeamSummary({
             id="gw-select"
             value={gameweek}
             onChange={(e) => onGameweekChange(Number(e.target.value))}
-            className="px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
+            className="select-arrow-white px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
           >
             {events.map((ev) => (
               <option key={ev.id} value={ev.id}>

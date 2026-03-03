@@ -79,3 +79,30 @@ body {
 .league-table-scroll::-webkit-scrollbar-thumb:hover {
   background: #3d3550;
 }
+
+/* Player Stats: contained scroll on mobile so table doesn't push viewport */
+.player-stats-scroll {
+  overflow-x: auto;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  max-width: 100%;
+  overscroll-behavior-x: contain;
+}
+.player-stats-scroll::-webkit-scrollbar {
+  height: 6px;
+  width: 6px;
+}
+.player-stats-scroll::-webkit-scrollbar-thumb {
+  background: var(--fpl-border);
+  border-radius: 3px;
+}
+
+/* Dropdown arrow: white and visible on dark backgrounds */
+.select-arrow-white {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='white'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.5rem center;
+  background-size: 1.25em;
+  padding-right: 2rem;
+}

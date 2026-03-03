@@ -20,7 +20,7 @@ export default function TeamSearchPage() {
 
   useEffect(() => {
     if (showLeaguePicker && leagues.length > 0 && selectedLeagueId == null) {
-      const saved = sessionStorage.getItem(DEFAULT_LEAGUE_KEY);
+      const saved = localStorage.getItem(DEFAULT_LEAGUE_KEY);
       const savedId = saved ? parseInt(saved, 10) : null;
       const inList = savedId != null && leagues.some((l) => l.id === savedId);
       setSelectedLeagueId(inList ? savedId : leagues[0].id);
@@ -35,8 +35,8 @@ export default function TeamSearchPage() {
   const handleContinue = () => {
     const leagueId = selectedLeagueId ?? leagues[0]?.id;
     if (leagueId == null || selectedEntryId == null) return;
-    sessionStorage.setItem(TEAM_ID_KEY, String(selectedEntryId));
-    sessionStorage.setItem(DEFAULT_LEAGUE_KEY, String(leagueId));
+    localStorage.setItem(TEAM_ID_KEY, String(selectedEntryId));
+    localStorage.setItem(DEFAULT_LEAGUE_KEY, String(leagueId));
     setRedirecting(true);
     setTimeout(() => {
       setSearchParams({ team: String(selectedEntryId) });
@@ -98,7 +98,7 @@ export default function TeamSearchPage() {
                   id="default-league"
                   value={selectedLeagueId ?? ''}
                   onChange={(e) => setSelectedLeagueId(Number(e.target.value) || null)}
-                  className="w-full max-w-md px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent text-sm"
+                  className="select-arrow-white w-full max-w-md px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent text-sm"
                 >
                   {leagues.map((league) => (
                     <option key={league.id} value={league.id}>

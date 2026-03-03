@@ -4,6 +4,8 @@ import PlayersNews from '../components/PlayersNews';
 import type { FplElement, FplTeam } from '../types/fpl';
 
 const TOP_N = 10;
+/** Approx rows visible in first view before scrolling (row height ~36px). */
+const ROWS_IN_FIRST_VIEW = 20;
 
 const POS_LABELS: Record<number, string> = {
   1: 'GKP',
@@ -170,7 +172,7 @@ function PlayerStatsTable({
   const rank = (r: number | undefined) => (r != null ? r.toLocaleString() : '—');
 
   return (
-    <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden">
+    <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden min-w-0 w-full">
       <h3 className="text-base font-semibold text-white px-4 py-3 border-b border-fpl-border bg-fpl-card/80">
         Player Stats
       </h3>
@@ -180,7 +182,7 @@ function PlayerStatsTable({
           <select
             value={positionFilter}
             onChange={(e) => onPositionChange(e.target.value)}
-            className="bg-fpl-bg border border-fpl-border rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-fpl-border"
+            className="select-arrow-white bg-fpl-bg border border-fpl-border rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-fpl-border"
           >
             <option value="">All</option>
             {[1, 2, 3, 4].map((id) => (
@@ -195,7 +197,7 @@ function PlayerStatsTable({
           <select
             value={teamFilter}
             onChange={(e) => onTeamChange(e.target.value)}
-            className="bg-fpl-bg border border-fpl-border rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-fpl-border min-w-[140px]"
+            className="select-arrow-white bg-fpl-bg border border-fpl-border rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-fpl-border min-w-[140px]"
           >
             <option value="">All</option>
             {teams.map((t) => (
@@ -206,13 +208,66 @@ function PlayerStatsTable({
           </select>
         </label>
       </div>
-      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
-        <table className="w-full text-left">
-          <thead className="sticky top-0 bg-fpl-card z-10">
+      <p className="px-4 py-1 text-slate-500 text-sm border-b border-fpl-border/60">
+        All {sorted.length} players — scroll to see more
+      </p>
+
+      {/* Mobile: card list (no horizontal scroll, native feel) */}
+      <div
+        className="md:hidden w-full min-w-0 overflow-y-auto overflow-x-hidden"
+        style={{ maxHeight: `min(${ROWS_IN_FIRST_VIEW * 36}px, 75vh)` }}
+      >
+        {sorted.length === 0 ? (
+          <div className="px-4 py-8 text-slate-500 text-center text-sm">
+            No players match the filters
+          </div>
+        ) : (
+          <ul className="divide-y divide-fpl-border/60">
+            {sorted.map((e) => {
+              const teamName = teams.find((t) => t.id === e.team)?.name;
+              const displayName = teamName ? `${e.web_name} (${teamName})` : e.web_name;
+              return (
+                <li
+                  key={e.id}
+                  className="px-4 py-3 bg-fpl-card/50 first:border-t-0"
+                >
+                  <p className="text-white font-medium text-sm truncate pr-2" title={displayName}>
+                    {displayName}
+                  </p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-slate-400 text-xs">
+                    <span>Points</span>
+                    <span className="text-slate-300 text-right tabular-nums">
+                      {e.total_points != null ? e.total_points.toLocaleString() : '—'}
+                    </span>
+                    <span>Price</span>
+                    <span className="text-slate-300 text-right tabular-nums">{price(e.now_cost)}</span>
+                    <span>Sel %</span>
+                    <span className="text-slate-300 text-right tabular-nums">{pct(e.selected_by_percent)}</span>
+                    <span>Form</span>
+                    <span className="text-slate-300 text-right tabular-nums">{e.form ?? '—'}</span>
+                    <span>Rank</span>
+                    <span className="text-slate-300 text-right tabular-nums">{rank(e.selected_rank)}</span>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+
+      {/* Desktop: table in contained scroll */}
+      <div
+        className="hidden md:block player-stats-scroll w-full min-w-0"
+        style={{ maxHeight: `min(${ROWS_IN_FIRST_VIEW * 36}px, 75vh)` }}
+      >
+        <table className="w-full text-left min-w-[600px]">
+          <thead className="sticky top-0 bg-fpl-card z-10 shadow-sm">
             <tr className="text-slate-400 text-sm border-b border-fpl-border">
-              <th className="px-4 py-2.5 font-medium">Player</th>
+              <th className="sticky left-0 z-20 bg-fpl-card px-3 sm:px-4 py-2.5 font-medium whitespace-nowrap shadow-[4px_0_8px_-2px_rgba(0,0,0,0.25)]">
+                Player
+              </th>
               <SortableTh
-                label="Overall Points"
+                label="Points"
                 sortKey="points"
                 currentSortKey={sortKey}
                 sortDir={sortDir}
@@ -226,7 +281,7 @@ function PlayerStatsTable({
                 onSort={handleSort}
               />
               <SortableTh
-                label="Selected %"
+                label="Sel %"
                 sortKey="selected"
                 currentSortKey={sortKey}
                 sortDir={sortDir}
@@ -251,7 +306,7 @@ function PlayerStatsTable({
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-6 text-slate-500 text-center text-sm">
+                <td colSpan={6} className="px-3 sm:px-4 py-6 text-slate-500 text-center text-sm">
                   No players match the filters
                 </td>
               </tr>
@@ -262,22 +317,24 @@ function PlayerStatsTable({
                 return (
                   <tr
                     key={e.id}
-                    className="border-b border-fpl-border/60 last:border-0 hover:bg-fpl-card/80"
+                    className="group border-b border-fpl-border/60 last:border-0 hover:bg-fpl-card/80"
                   >
-                    <td className="px-4 py-2.5 text-white">{displayName}</td>
-                    <td className="px-4 py-2.5 text-slate-300 text-right tabular-nums">
+                    <td className="sticky left-0 z-[1] bg-fpl-card group-hover:bg-fpl-card/80 px-3 sm:px-4 py-2.5 text-white text-sm sm:text-base min-w-[120px] max-w-[180px] truncate shadow-[4px_0_8px_-2px_rgba(0,0,0,0.25)]" title={displayName}>
+                      {displayName}
+                    </td>
+                    <td className="px-3 sm:px-4 py-2.5 text-slate-300 text-right tabular-nums whitespace-nowrap">
                       {e.total_points != null ? e.total_points.toLocaleString() : '—'}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-300 text-right tabular-nums">
+                    <td className="px-3 sm:px-4 py-2.5 text-slate-300 text-right tabular-nums whitespace-nowrap">
                       {price(e.now_cost)}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-300 text-right tabular-nums">
+                    <td className="px-3 sm:px-4 py-2.5 text-slate-300 text-right tabular-nums whitespace-nowrap">
                       {pct(e.selected_by_percent)}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-300 text-right tabular-nums">
+                    <td className="px-3 sm:px-4 py-2.5 text-slate-300 text-right tabular-nums whitespace-nowrap">
                       {e.form ?? '—'}
                     </td>
-                    <td className="px-4 py-2.5 text-slate-300 text-right tabular-nums">
+                    <td className="px-3 sm:px-4 py-2.5 text-slate-300 text-right tabular-nums whitespace-nowrap">
                       {rank(e.selected_rank)}
                     </td>
                   </tr>
@@ -349,7 +406,7 @@ export default function PlayerStatsPage() {
         </div>
       </section>
 
-      <section className="mt-8">
+      <section className="mt-8 min-w-0 overflow-hidden">
         <PlayerStatsTable
           elements={bootstrap?.elements ?? []}
           teams={bootstrap?.teams ?? []}

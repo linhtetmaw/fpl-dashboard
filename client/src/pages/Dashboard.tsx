@@ -12,14 +12,14 @@ const TEAM_ID_KEY = 'fpl_team_id';
 
 function getDefaultLeagueId(): number | null {
   if (typeof window === 'undefined') return null;
-  const s = sessionStorage.getItem(DEFAULT_LEAGUE_KEY);
+  const s = localStorage.getItem(DEFAULT_LEAGUE_KEY);
   const n = s ? parseInt(s, 10) : NaN;
   return Number.isInteger(n) && n > 0 ? n : null;
 }
 
 function getStoredTeamId(): number | null {
   if (typeof window === 'undefined') return null;
-  const s = sessionStorage.getItem(TEAM_ID_KEY);
+  const s = localStorage.getItem(TEAM_ID_KEY);
   const n = s ? parseInt(s, 10) : NaN;
   return Number.isInteger(n) && n > 0 ? n : null;
 }
@@ -35,7 +35,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (resolvedTeamId != null && teamIdParam != null && parseInt(teamIdParam, 10) === resolvedTeamId) {
-      sessionStorage.setItem(TEAM_ID_KEY, String(resolvedTeamId));
+      localStorage.setItem(TEAM_ID_KEY, String(resolvedTeamId));
     }
   }, [resolvedTeamId, teamIdParam]);
 
@@ -68,7 +68,7 @@ export default function Dashboard() {
   }, [entryHistory, effectiveGw]);
 
   const handleSearch = (id: number) => {
-    sessionStorage.setItem(TEAM_ID_KEY, String(id));
+    localStorage.setItem(TEAM_ID_KEY, String(id));
     setSearchParams({ team: String(id) });
   };
 
