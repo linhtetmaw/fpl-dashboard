@@ -171,7 +171,6 @@ export default function PitchView({ players, bootstrap }: PitchViewProps) {
       {/* Bench: same card style as pitch, slightly larger */}
       {bench.length > 0 && (
         <div className="border-t border-fpl-border bg-fpl-card/80 px-3 py-3 sm:px-5 sm:py-4">
-          <p className="text-slate-400 font-medium text-xs sm:text-sm mb-2">Bench</p>
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
             {bench.map((p) =>
               renderPlayerCard(p, {

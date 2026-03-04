@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import type { BootstrapStatic } from '../types/fpl';
 import type { LeagueSortBy } from '../types/fpl';
-import { getLeagueStandingsWithChips, getLeagueStandings, getEntryHistory } from '../api/fpl';
+import { getLeagueStandingsWithChips, getLeagueStandings, getEntryHistory, getTeamPicks } from '../api/fpl';
 
 interface LeagueTableProps {
   leagueId: number;
@@ -84,6 +84,35 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
           }))
         : [],
   });
+
+  const picksQueries = useQueries({
+    queries:
+      entryIds.length > 0 && gameweek > 0
+        ? entryIds.slice(0, 50).map((entryId) => ({
+            queryKey: ['fpl', 'picks', entryId, gameweek],
+            queryFn: () => getTeamPicks(entryId, gameweek),
+            staleTime: 60 * 1000,
+          }))
+        : [],
+  });
+
+  const captainByEntry = useMemo(() => {
+    const map = new Map<number, string>();
+    if (!bootstrap?.elements?.length) return map;
+    const elementById = new Map(bootstrap.elements.map((e) => [e.id, e.web_name ?? '']));
+    picksQueries.forEach((q, i) => {
+      const entryId = entryIds[i];
+      if (entryId == null) return;
+      const picks = q.data?.picks;
+      const captainPick = picks?.find((p) => p.is_captain);
+      const elementId = captainPick?.element;
+      if (elementId != null) {
+        const name = elementById.get(elementId);
+        if (name) map.set(entryId, name);
+      }
+    });
+    return map;
+  }, [bootstrap?.elements, entryIds, picksQueries]);
 
   const monthlyByEntry = useMemo(() => {
     if (sortBy !== 'monthly' || !bootstrap) return new Map<number, number>();
@@ -205,14 +234,18 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
                     </td>
                     <td className="px-4 py-2.5">
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-medium text-slate-200">{row.entry_name}</span>
+                        <span className="font-medium text-slate-200">
+                          {row.entry_name} ({row.player_name})
+                        </span>
                         {row.chip && (
                           <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase bg-fpl-accent/30 text-fpl-accent border border-fpl-accent/50">
                             {formatChipLabel(row.chip)}
                           </span>
                         )}
                       </div>
-                      <div className="text-slate-500 text-xs mt-0.5">{row.player_name}</div>
+                      <div className="text-slate-500 text-xs mt-0.5">
+                        {captainByEntry.get(row.entry) ? `Captain: ${captainByEntry.get(row.entry)}` : '—'}
+                      </div>
                     </td>
                     <td className="px-4 py-2.5 text-right font-medium text-white">{row.points}</td>
                     <td className="px-4 py-2.5 text-right text-slate-300 text-sm">

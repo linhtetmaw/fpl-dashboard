@@ -95,13 +95,7 @@ export default function AppLayout() {
               </div>
             )}
           </div>
-          {/* Row 2: Subtitle (when team selected) */}
-          {hasTeam && (
-            <p className="text-slate-400 text-sm mt-1">
-              View Your Team Points and League Standings.
-            </p>
-          )}
-          {/* Row 3: Nav buttons + Gameweek deadline (same level) */}
+          {/* Row 2: Nav buttons + Gameweek deadline (same level) */}
           <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
             <nav className="flex flex-wrap items-center gap-2">
               <NavLink
@@ -142,7 +136,8 @@ export default function AppLayout() {
               Fixtures
             </NavLink>
             </nav>
-            <div className="flex flex-col items-end">
+            {/* Desktop: deadline in header. Hidden on mobile (shown below "Advertise here"). */}
+            <div className="hidden md:flex flex-col items-end">
               <span className="text-sm font-bold" style={{ color: '#f37025' }}>
                 Next Gameweek Deadline
               </span>
@@ -161,6 +156,23 @@ export default function AppLayout() {
         <div className="w-full max-w-6xl border-b border-fpl-border bg-fpl-card/40 py-2 flex items-center justify-center min-h-[52px] rounded-b-lg">
           <span className="text-slate-500 text-sm">Advertise here</span>
         </div>
+      </div>
+      {/* Mobile only: deadline between "Advertise here" and main content (up to two lines) */}
+      <div className="md:hidden shrink-0 px-4 py-2 border-b border-fpl-border bg-fpl-card/30">
+        <p className="text-center text-sm tabular-nums">
+          <span className="font-bold block" style={{ color: '#f37025' }}>
+            Next Gameweek Deadline
+          </span>
+          <span className="text-slate-300">
+            {countdown ? (
+              <>
+                {countdown.d} Days: {countdown.h} Hours: {countdown.m} Minutes: {countdown.s} Seconds
+              </>
+            ) : (
+              '—'
+            )}
+          </span>
+        </p>
       </div>
       <div className="flex-1 min-h-0">
         <Outlet />

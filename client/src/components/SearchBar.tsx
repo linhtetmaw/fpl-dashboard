@@ -23,6 +23,7 @@ export default function SearchBar({
   const [error, setError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
+  const [teamIdImgError, setTeamIdImgError] = useState(false);
 
   const handleSubmitId = (e: FormEvent) => {
     e.preventDefault();
@@ -183,30 +184,60 @@ export default function SearchBar({
           )}
         </>
       ) : (
-        <form onSubmit={handleSubmitId} className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
-          <div className="flex-1 flex flex-col gap-1">
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="Enter FPL Team ID (e.g. 12345)"
-              value={idValue}
-              onChange={(e) => {
-                setIdValue(e.target.value);
-                setError(null);
-              }}
-              className="px-4 py-2.5 rounded-lg bg-fpl-card border border-fpl-border text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-fpl-accent focus:border-transparent"
-              disabled={isLoading}
-            />
-            {error && <p className="text-sm text-rose-400">{error}</p>}
+        <div className="space-y-3">
+          <div className="rounded-lg border border-fpl-border bg-fpl-card/50 p-3 text-slate-400 text-sm">
+            <p className="font-medium text-slate-300 mb-1">How to find your Team ID</p>
+            <ol className="list-decimal list-inside space-y-1 text-xs">
+              <li>Go to <a href="https://fantasy.premierleague.com" target="_blank" rel="noopener noreferrer" className="text-fpl-accent hover:underline">fantasy.premierleague.com</a> and log in.</li>
+              <li>Choose "Points".</li>
+              <li>Look at the browser address bar. The URL will look like <code className="bg-fpl-dark px-1 rounded">…/entry/<strong>123456</strong>/event/…</code> — the number after <code className="bg-fpl-dark px-1 rounded">entry/</code> is your Team ID.</li>
+            </ol>
+            {/* Screenshot: add client/public/how-to-find-team-id.png (browser address bar showing entry/123456) */}
+            <figure className="mt-3">
+              <div className="w-full max-w-md rounded border border-fpl-border bg-fpl-dark/50 min-h-[120px] flex items-center justify-center overflow-hidden">
+                {teamIdImgError ? (
+                  <span className="text-slate-500 text-xs p-4 text-center">
+                    Add screenshot: <code className="bg-fpl-dark px-1 rounded">client/public/how-to-find-team-id.png</code>
+                  </span>
+                ) : (
+                  <img
+                    src="/how-to-find-team-id.png"
+                    alt="Screenshot showing where to find Team ID in the FPL website address bar"
+                    className="w-full object-contain"
+                    onError={() => setTeamIdImgError(true)}
+                  />
+                )}
+              </div>
+              <figcaption className="text-slate-500 text-xs mt-1">
+                The number after <code className="bg-fpl-dark px-1 rounded">entry/</code> in the address bar is your Team ID.
+              </figcaption>
+            </figure>
           </div>
-          <button
-            type="submit"
-            disabled={isLoading}
-            className="px-6 py-2.5 rounded-lg bg-fpl-accent hover:bg-fpl-accent-hover text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? 'Loading…' : 'View team'}
-          </button>
-        </form>
+          <form onSubmit={handleSubmitId} className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+            <div className="flex-1 flex flex-col gap-1">
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Enter FPL Team ID (e.g. 12345)"
+                value={idValue}
+                onChange={(e) => {
+                  setIdValue(e.target.value);
+                  setError(null);
+                }}
+                className="px-4 py-2.5 rounded-lg bg-fpl-card border border-fpl-border text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-fpl-accent focus:border-transparent"
+                disabled={isLoading}
+              />
+              {error && <p className="text-sm text-rose-400">{error}</p>}
+            </div>
+            <button
+              type="submit"
+              disabled={isLoading}
+              className="px-6 py-2.5 rounded-lg bg-fpl-accent hover:bg-fpl-accent-hover text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isLoading ? 'Loading…' : 'View team'}
+            </button>
+          </form>
+        </div>
       )}
     </div>
   );

@@ -131,51 +131,67 @@ export default function Dashboard() {
 
         {entry && (
           <>
-            <TeamSummary
-              teamName={entry.name}
-              managerName={`${entry.player_first_name} ${entry.player_last_name}`}
-              teamId={entry.id}
-              gameweek={effectiveGw}
-              events={events}
-              onGameweekChange={handleGameweekChange}
-              summary={teamSummary}
-              gwNetTotal={teamSummary ? (teamSummary.chip === 'bboost' ? teamSummary.total_points : teamSummary.starting_points) : null}
-              teamValue={teamValue}
-              isLoading={picksLoading || liveLoading}
-            />
-
-            {teamSummary && (
+            {teamSummary ? (
               <>
-                <section className="mt-8">
-                  <div className="flex flex-col lg:flex-row gap-6 items-stretch">
-                    <div ref={pitchWrapRef} className="min-w-0 lg:flex-1">
+                <section className="flex flex-col lg:flex-row gap-6 items-stretch">
+                  <div className="min-w-0 lg:flex-1 flex flex-col">
+                    <TeamSummary
+                      teamName={entry.name}
+                      managerName={`${entry.player_first_name} ${entry.player_last_name}`}
+                      teamId={entry.id}
+                      gameweek={effectiveGw}
+                      events={events}
+                      onGameweekChange={handleGameweekChange}
+                      summary={teamSummary}
+                      gwNetTotal={teamSummary.chip === 'bboost' ? teamSummary.total_points : teamSummary.starting_points}
+                      teamValue={teamValue}
+                      isLoading={picksLoading || liveLoading}
+                      showShLeagueBadge={entry.leagues?.classic?.some((l) => l.id === 699005)}
+                    />
+                    <div ref={pitchWrapRef} className="mt-8">
                       <div className="flex flex-wrap items-baseline gap-2 mb-3">
-                      <h2 className="text-lg font-semibold text-white">Pitch view</h2>
-                      <span className="text-slate-500 text-xs">Click Player Image to view profile</span>
-                    </div>
+                        <h2 className="text-lg font-semibold text-white">Pitch view</h2>
+                        <span className="text-slate-500 text-xs">Click Player Image to view profile</span>
+                      </div>
                       <PitchView players={teamSummary.players} bootstrap={bootstrap ?? undefined} />
                     </div>
-                    <div
-                      className="lg:w-[480px] lg:flex-shrink-0 lg:min-h-0 lg:overflow-hidden"
-                      style={pitchHeight != null ? { height: pitchHeight, maxHeight: '85vh' } : undefined}
-                    >
-                      <h2 className="text-lg font-semibold text-white mb-3">Leagues</h2>
-                      <LeagueSelector
-                        leagues={entry.leagues?.classic ?? []}
-                        teamId={resolvedTeamId}
-                        bootstrap={bootstrap ?? undefined}
-                        onTeamClick={handleSearch}
-                        initialLeagueId={defaultLeagueId}
-                        gameweek={effectiveGw}
-                        currentUserChip={teamSummary?.chip ?? null}
-                      />
-                    </div>
+                  </div>
+                  <div
+                    className="lg:w-[480px] lg:flex-shrink-0 lg:min-h-0 lg:overflow-hidden"
+                    style={pitchHeight != null ? { height: pitchHeight, maxHeight: '85vh' } : undefined}
+                  >
+                    <h2 className="text-lg font-semibold text-white mb-3">Leagues</h2>
+                    <LeagueSelector
+                      leagues={entry.leagues?.classic ?? []}
+                      teamId={resolvedTeamId}
+                      bootstrap={bootstrap ?? undefined}
+                      onTeamClick={handleSearch}
+                      initialLeagueId={defaultLeagueId}
+                      gameweek={effectiveGw}
+                      currentUserChip={teamSummary.chip ?? null}
+                    />
                   </div>
                 </section>
                 <section className="mt-8">
                   <h2 className="text-lg font-semibold text-white mb-3">Player breakdown</h2>
                   <PlayersTable players={teamSummary.players} />
                 </section>
+              </>
+            ) : (
+              <>
+                <TeamSummary
+                  teamName={entry.name}
+                  managerName={`${entry.player_first_name} ${entry.player_last_name}`}
+                  teamId={entry.id}
+                  gameweek={effectiveGw}
+                  events={events}
+                  onGameweekChange={handleGameweekChange}
+                  summary={null}
+                  gwNetTotal={null}
+                  teamValue={teamValue}
+                  isLoading={picksLoading || liveLoading}
+                  showShLeagueBadge={entry.leagues?.classic?.some((l) => l.id === 699005)}
+                />
               </>
             )}
           </>
