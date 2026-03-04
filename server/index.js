@@ -121,6 +121,19 @@ async function loadTeamIdToName() {
 loadIndex();
 loadLeagueIndex();
 
+// On production (e.g. Railway free tier with no shell): if index is empty, seed ASEAN leagues in background so team name search works.
+if (getIndexSize() === 0) {
+  import('./seed-search-index.js')
+    .then(({ seedAseanLeagues }) => seedAseanLeagues())
+    .then((count) => {
+      loadIndex();
+      console.log('Search index seeded with', count, 'teams (ASEAN). Team name search is ready.');
+    })
+    .catch((err) => {
+      console.error('Startup seed failed (team name search may be limited):', err.message);
+    });
+}
+
 badgeUrlCache.clear();
 loadTeamIdToName().then(() => {
   console.log('Bootstrap loaded for badges: team id→name from FPL API');

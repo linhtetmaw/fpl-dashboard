@@ -113,6 +113,22 @@ async function seedOneLeague(map, leagueId, leagueName) {
   return totalFetched;
 }
 
+/**
+ * Run ASEAN league seed (used by server when index is empty on startup).
+ * Returns final index size. Writes to INDEX_PATH; caller should loadIndex() after.
+ */
+export async function seedAseanLeagues() {
+  const map = loadExisting();
+  console.log('[seed] Search index empty or missing, seeding ASEAN leagues...');
+  for (const { id, name } of ASEAN_LEAGUE_IDS) {
+    console.log('[seed] League ' + id + ' (' + name + ')');
+    await seedOneLeague(map, id, name);
+  }
+  saveIndex(map);
+  console.log('[seed] Done. Index size:', map.size);
+  return map.size;
+}
+
 async function main() {
   const map = loadExisting();
   console.log('Existing entries:', map.size);
@@ -159,7 +175,11 @@ async function main() {
   console.log('Done. Index size:', map.size);
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+// When run as script (node seed-search-index.js ...), run main. When imported, do nothing.
+const isRunDirect = process.argv[1]?.includes('seed-search-index');
+if (isRunDirect) {
+  main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+  });
+}
