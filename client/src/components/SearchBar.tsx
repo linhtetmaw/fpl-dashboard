@@ -1,6 +1,9 @@
 import { useState, FormEvent } from 'react';
-import { searchByLeagueAndTeam } from '../api/fpl';
-import type { SearchByLeagueResult } from '../types/fpl';
+import { searchTeams, searchByLeagueAndTeam } from '../api/fpl';
+import type { StandingEntry } from '../types/fpl';
+
+/** Search result: from index (no league info) or from search-by-league (with league_id/league_name). */
+type SearchResult = StandingEntry & { league_id?: number; league_name?: string };
 
 interface SearchBarProps {
   onSearch: (teamId: number) => void;
@@ -18,7 +21,7 @@ export default function SearchBar({
   const [teamName, setTeamName] = useState('');
   const [managerName, setManagerName] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [searchResults, setSearchResults] = useState<SearchByLeagueResult[] | null>(null);
+  const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
 
   const handleSubmitId = (e: FormEvent) => {
@@ -49,9 +52,13 @@ export default function SearchBar({
     }
     setSearching(true);
     try {
-      const matches = await searchByLeagueAndTeam(team, {
-        managerName: managerName.trim() || undefined,
-      });
+      // Option C: try index first (instant if seeded), then fall back to live search-by-league
+      let matches: SearchResult[] = await searchTeams(team, managerName.trim() || undefined);
+      if (matches.length === 0) {
+        matches = await searchByLeagueAndTeam(team, {
+          managerName: managerName.trim() || undefined,
+        });
+      }
       setSearchResults(matches);
       if (matches.length === 0) {
         setError('No teams found. Check team/ manager name or search by team ID.');
@@ -157,7 +164,7 @@ export default function SearchBar({
               </p>
               <ul className="max-h-48 overflow-y-auto">
                 {searchResults.map((r) => (
-                  <li key={`${r.league_id}-${r.entry}`}>
+                  <li key={r.entry}>
                     <button
                       type="button"
                       onClick={() => handleSelectResult(r.entry)}
@@ -166,7 +173,7 @@ export default function SearchBar({
                       <span className="text-slate-200 font-medium truncate">{r.entry_name}</span>
                       <span className="text-slate-500 text-xs shrink-0">
                         {r.player_name}
-                        {r.league_name ? ` · ${r.league_name}` : ''}
+                        {r.league_name != null && r.league_name ? ` · ${r.league_name}` : ''}
                       </span>
                     </button>
                   </li>

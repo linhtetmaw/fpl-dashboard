@@ -64,7 +64,23 @@ node seed-search-index.js 2000
 
    This fetches from several page ranges (top 25k, then samples around ~500k, ~2.5M, and ~5M rank), so a mix of ranks is in the index. High page numbers may return empty if the league is smaller in early season.
 
-4. **Can't find by name?**  
+4. **ASEAN / country leagues (Option C)**  
+   To make **all teams from specific country leagues** searchable (e.g. Myanmar, Cambodia, Thailand, Singapore, Malaysia, Vietnam), seed those leagues:
+
+   ```bash
+   cd server
+   node seed-search-index.js asean
+   ```
+
+   This seeds every team from the leagues listed in `server/seed-search-index.js` (ASEAN_LEAGUE_IDS). Only **Myanmar (167)** is pre-configured; to add more countries, find the league ID from the FPL website: go to [fantasy.premierleague.com/leagues](https://fantasy.premierleague.com/leagues), open the country league, and take the number from the URL (e.g. `…/leagues/167/standings/c` → ID is **167**). Add `{ id: <id>, name: '<Country>' }` to `ASEAN_LEAGUE_IDS` in `seed-search-index.js`, then run `node seed-search-index.js asean` again.
+
+   To seed a single league by ID:
+
+   ```bash
+   node seed-search-index.js league 167
+   ```
+
+5. **Can't find by name?**  
    In the app, when name search finds nothing, we show a **“Find your Team ID”** guide: users go to fantasy.premierleague.com, open their team, and copy the number from the URL (`…/entry/123456/…`). After they view their team once by ID, we add them to the index so name search works next time.
 
 ### Build for production

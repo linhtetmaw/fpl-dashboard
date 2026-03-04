@@ -83,6 +83,16 @@ export default function Dashboard() {
   const events = bootstrap?.events ?? [];
   const entryNotFound = resolvedTeamId != null && !entryLoading && (entryError != null || !entry);
 
+  const deadlinePassedForCurrentGw = useMemo(() => {
+    const ev = bootstrap?.events?.find((e) => e.is_next || e.is_current);
+    if (!ev?.deadline_time) return false;
+    return new Date(ev.deadline_time) < new Date();
+  }, [bootstrap?.events]);
+
+  const dataUpdatingAfterDeadline =
+    deadlinePassedForCurrentGw &&
+    (bootstrapError || entryError || entryLoading || picksLoading || liveLoading || (entry != null && teamSummary == null));
+
   const pitchWrapRef = useRef<HTMLDivElement>(null);
   const [pitchHeight, setPitchHeight] = useState<number | null>(null);
   useEffect(() => {
@@ -108,7 +118,12 @@ export default function Dashboard() {
       )}
 
       <main className="max-w-6xl mx-auto px-4 py-8">
-        {bootstrapError && (
+        {dataUpdatingAfterDeadline && (
+          <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/20 text-amber-200 text-sm">
+            Deadline passed and game is currently updating. Please wait.
+          </div>
+        )}
+        {bootstrapError && !dataUpdatingAfterDeadline && (
           <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/20 text-amber-200 text-sm">
             Failed to load game data. Please refresh the page.
           </div>

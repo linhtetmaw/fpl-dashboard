@@ -4,7 +4,7 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import cors from 'cors';
 import fetch from 'node-fetch';
-import { loadIndex, addToIndex, searchIndex } from './search-index.js';
+import { loadIndex, addToIndex, searchIndex, getIndexSize } from './search-index.js';
 import { loadLeagueIndex, addLeagueToIndex, searchLeaguesByName } from './league-index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -381,6 +381,17 @@ app.get('/api/search', (req, res) => {
   res.json({ results, count: results.length });
 });
 
+/** Reload search index from disk (call after running seed script so new teams are searchable without restart). */
+app.post('/api/search/reload', (_req, res) => {
+  try {
+    loadIndex();
+    res.json({ ok: true, count: getIndexSize() });
+  } catch (err) {
+    console.error('Search index reload error:', err.message);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 /** Proxy league standings and index league name for search-by-league. */
 app.get(['/api/leagues-classic/:id/standings/', '/api/leagues-classic/:id/standings'], async (req, res) => {
   const id = req.params.id;
@@ -521,8 +532,8 @@ app.get('/api/leagues-classic/:id/standings-with-chips', async (req, res) => {
   }
 });
 
-/** Default league IDs to search when no league_id or league name is provided. Add more IDs as needed. */
-const DEFAULT_LEAGUE_IDS = [699005, 590677, 699083, 167];
+/** Default league IDs to search when no league_id or league name is provided. ASEAN: 57=Cambodia, 150=Malaysia, 167=Myanmar, 213=Singapore, 232=Thailand, 254=Vietnam. */
+const DEFAULT_LEAGUE_IDS = [699005, 590677, 699083, 57, 150, 167, 213, 232, 254];
 
 /** Search by League (name or ID) + Team name + Manager name (optional). Uses DEFAULT_LEAGUE_IDS when no league given. */
 app.get('/api/search-by-league', async (req, res) => {

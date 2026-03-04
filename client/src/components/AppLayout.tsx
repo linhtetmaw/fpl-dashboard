@@ -60,8 +60,8 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-fpl-dark text-slate-200">
-      <header className="sticky top-0 z-30 border-b border-fpl-border bg-fpl-card">
+    <div className="min-h-screen bg-fpl-dark text-slate-200 flex flex-col">
+      <header className="sticky top-0 z-30 border-b border-fpl-border bg-fpl-card shrink-0">
         <div className="max-w-6xl mx-auto px-4 py-4">
           {/* Row 1: Title left, Right: buttons + deadline */}
           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -157,7 +157,19 @@ export default function AppLayout() {
           </div>
         </div>
       </header>
-      <Outlet />
+      <div className="shrink-0 flex justify-center px-4">
+        <div className="w-full max-w-6xl border-b border-fpl-border bg-fpl-card/40 py-2 flex items-center justify-center min-h-[52px] rounded-b-lg">
+          <span className="text-slate-500 text-sm">Advertise here</span>
+        </div>
+      </div>
+      <div className="flex-1 min-h-0">
+        <Outlet />
+      </div>
+      <footer className="shrink-0 border-t border-fpl-border bg-fpl-card/60 py-4">
+        <div className="max-w-6xl mx-auto px-4 text-center text-slate-500 text-sm">
+          © FPL HOUSE 2026. Developed by Reindeers.
+        </div>
+      </footer>
     </div>
   );
 }

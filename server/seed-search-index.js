@@ -7,9 +7,9 @@
  *   node seed-search-index.js [maxPages]       Overall league, top only (default 2000 pages = 100k teams)
  *   node seed-search-index.js stratified        Overall league, sample from several rank ranges
  *   node seed-search-index.js league <id>       Fetch ALL pages of a specific league (e.g. 167 = Myanmar)
+ *   node seed-search-index.js asean             Fetch ALL pages of ASEAN country leagues (Myanmar, Cambodia, Thailand, Singapore, Malaysia, Vietnam)
  *
- * League 167 (Myanmar) contains all teams from league 699005 (Soccer House League). Seeding
- * "league 167" stores every team in Myanmar so they are findable in search.
+ * To find a country league ID: go to fantasy.premierleague.com → Leagues → select country → league ID is in the URL (e.g. .../leagues/167/standings/c).
  */
 
 import fs from 'fs';
@@ -22,10 +22,21 @@ const INDEX_PATH = path.join(__dirname, 'data', 'search-index.json');
 const OVERALL_LEAGUE_ID = 314;
 const BATCH_SIZE = 10;
 
+/** FPL country league IDs for ASEAN. Resolved via FPL API (leagues-classic/{id}/standings). */
+const ASEAN_LEAGUE_IDS = [
+  { id: 57, name: 'Cambodia' },
+  { id: 150, name: 'Malaysia' },
+  { id: 167, name: 'Myanmar' },
+  { id: 213, name: 'Singapore' },
+  { id: 232, name: 'Thailand' },
+  { id: 254, name: 'Vietnam' },
+];
+
 const arg = process.argv[2];
 const arg2 = process.argv[3];
 const isStratified = String(arg || '').toLowerCase() === 'stratified';
 const isLeagueMode = String(arg || '').toLowerCase() === 'league' && arg2;
+const isAseanMode = String(arg || '').toLowerCase() === 'asean';
 const leagueIdToSeed = isLeagueMode ? parseInt(arg2, 10) : null;
 const maxPages = isStratified
   ? 0
@@ -83,26 +94,43 @@ function getPagesToFetch() {
   return Array.from({ length: maxPages }, (_, i) => i + 1);
 }
 
+/** Seed one league (all pages) into the map. Returns total teams added from this league. */
+async function seedOneLeague(map, leagueId, leagueName) {
+  let page = 1;
+  let totalFetched = 0;
+  const maxPagesCap = 200;
+  while (page <= maxPagesCap) {
+    const { results: entries, has_next } = await fetchPage(leagueId, page);
+    for (const r of entries) {
+      map.set(r.entry, { entry: r.entry, entry_name: r.entry_name, player_name: r.player_name || '' });
+    }
+    totalFetched += entries.length;
+    console.log('  Page ' + page + ': +' + entries.length + ' teams | Index size: ' + map.size);
+    saveIndex(map);
+    if (!has_next || entries.length < 50) break;
+    page++;
+  }
+  return totalFetched;
+}
+
 async function main() {
   const map = loadExisting();
   console.log('Existing entries:', map.size);
 
+  if (isAseanMode) {
+    console.log('Seeding search index: ASEAN leagues (all pages each)');
+    for (const { id, name } of ASEAN_LEAGUE_IDS) {
+      console.log('League ' + id + ' (' + name + ')');
+      const n = await seedOneLeague(map, id, name);
+      console.log('  Fetched ' + n + ' teams from ' + name + '.');
+    }
+    console.log('Done. Index size:', map.size);
+    return;
+  }
+
   if (isLeagueMode && leagueIdToSeed) {
     console.log('Seeding search index: league ' + leagueIdToSeed + ' (all pages)');
-    let page = 1;
-    let totalFetched = 0;
-    const maxPagesCap = 200;
-    while (page <= maxPagesCap) {
-      const { results: entries, has_next } = await fetchPage(leagueIdToSeed, page);
-      for (const r of entries) {
-        map.set(r.entry, { entry: r.entry, entry_name: r.entry_name, player_name: r.player_name || '' });
-      }
-      totalFetched += entries.length;
-      console.log('Page ' + page + ': +' + entries.length + ' teams | Index size: ' + map.size);
-      saveIndex(map);
-      if (!has_next || entries.length < 50) break;
-      page++;
-    }
+    const totalFetched = await seedOneLeague(map, leagueIdToSeed, null);
     console.log('Done. Fetched ' + totalFetched + ' teams from league ' + leagueIdToSeed + '. Index size:', map.size);
     return;
   }

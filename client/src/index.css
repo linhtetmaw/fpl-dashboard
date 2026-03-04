@@ -7,6 +7,7 @@
   --fpl-card: #1a1425;
   --fpl-accent: #0f4c9b;
   --fpl-border: #2d2440;
+  --font-sans: 'Sora', system-ui, sans-serif;
 }
 
 /* Force accent button color (overrides any cached Tailwind) */
@@ -31,7 +32,7 @@ body {
   min-height: 100vh;
   background: var(--fpl-bg);
   color: #e2e8f0;
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: var(--font-sans);
 }
 
 #root {

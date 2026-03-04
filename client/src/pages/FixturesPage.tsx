@@ -17,15 +17,15 @@ function getTeamName(teams: FplTeam[], teamId: number): string {
 }
 
 const TIMEZONES = [
-  { value: 'UTC', label: 'UTC' },
-  { value: 'Europe/London', label: 'UK (GMT/BST)' },
-  { value: 'Europe/Berlin', label: 'Central Europe' },
-  { value: 'America/New_York', label: 'Eastern' },
-  { value: 'America/Los_Angeles', label: 'Pacific' },
-  { value: 'Asia/Kolkata', label: 'India' },
-  { value: 'Asia/Yangon', label: 'Myanmar' },
-  { value: 'Asia/Bangkok', label: 'Indochina' },
-  { value: 'Asia/Singapore', label: 'Singapore' },
+  { value: 'UTC', label: 'UTC Time' },
+  { value: 'Europe/London', label: 'UK Time' },
+  { value: 'Europe/Berlin', label: 'CET Time' },
+  { value: 'America/New_York', label: 'ET Time' },
+  { value: 'America/Los_Angeles', label: 'PT Time' },
+  { value: 'Asia/Kolkata', label: 'IST Time' },
+  { value: 'Asia/Yangon', label: 'MM Time' },
+  { value: 'Asia/Bangkok', label: 'ICT Time' },
+  { value: 'Asia/Singapore', label: 'SGT Time' },
 ];
 
 function formatKickoff(iso: string, timeZone: string): string {
@@ -251,12 +251,12 @@ export default function FixturesPage() {
                     key={f.id}
                     className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 p-4 rounded-lg bg-fpl-dark/60 border border-fpl-border/60"
                   >
-                    <div className="text-slate-400 text-sm shrink-0 w-32">
+                    <div className="text-slate-400 text-xs sm:text-base shrink-0 w-32">
                       {formatKickoff(f.kickoff_time, timezone)}
                     </div>
                     <div className="flex-1 flex items-center justify-between sm:justify-center gap-2 sm:gap-6">
                       <div className="flex items-center gap-2 min-w-0 flex-1 justify-end sm:justify-end">
-                        <span className="text-white font-medium truncate text-right">
+                        <span className="text-white font-medium truncate text-right text-xs sm:text-base">
                           {getTeamName(teams, f.team_h)}
                         </span>
                         <img
@@ -284,7 +284,7 @@ export default function FixturesPage() {
                             (e.target as HTMLImageElement).style.display = 'none';
                           }}
                         />
-                        <span className="text-white font-medium truncate">
+                        <span className="text-white font-medium truncate text-xs sm:text-base">
                           {getTeamName(teams, f.team_a)}
                         </span>
                       </div>
