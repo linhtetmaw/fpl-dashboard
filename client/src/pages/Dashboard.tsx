@@ -1,5 +1,5 @@
 import { useSearchParams } from 'react-router-dom';
-import { useMemo, useRef, useEffect, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import { useBootstrapStatic, useEntry, useTeamPicks, useEventLive, useEntryHistory, getCurrentEvent, computeTeamPointsSummary } from '../hooks/useFplApi';
 import TeamSearchPage from './TeamSearchPage';
 import TeamSummary from '../components/TeamSummary';
@@ -66,6 +66,21 @@ export default function Dashboard() {
     const cur = entryHistory?.current?.find((c) => c.event === effectiveGw);
     return cur && typeof cur.value === 'number' ? cur.value : null;
   }, [entryHistory, effectiveGw]);
+
+  const transfersCost = useMemo(() => {
+    const cur = entryHistory?.current?.find((c) => c.event === effectiveGw);
+    const raw = cur?.event_transfers_cost;
+    if (raw == null) return null;
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }, [entryHistory, effectiveGw]);
+
+  const gwNetTotal = useMemo(() => {
+    if (!teamSummary) return null;
+    const base = teamSummary.chip === 'bboost' ? teamSummary.total_points : teamSummary.starting_points;
+    const cost = transfersCost ?? 0;
+    return Math.max(0, base - cost);
+  }, [teamSummary, transfersCost]);
 
   const handleSearch = (id: number) => {
     localStorage.setItem(TEAM_ID_KEY, String(id));
@@ -143,7 +158,8 @@ export default function Dashboard() {
                       events={events}
                       onGameweekChange={handleGameweekChange}
                       summary={teamSummary}
-                      gwNetTotal={teamSummary.chip === 'bboost' ? teamSummary.total_points : teamSummary.starting_points}
+                      gwNetTotal={gwNetTotal}
+                      transfersCost={transfersCost}
                       teamValue={teamValue}
                       isLoading={picksLoading || liveLoading}
                       showShLeagueBadge={entry.leagues?.classic?.some((l) => l.id === 699005)}
@@ -153,14 +169,25 @@ export default function Dashboard() {
                         <h2 className="text-lg font-semibold text-white">Pitch view</h2>
                         <span className="text-slate-500 text-xs">Click Player Image to view profile</span>
                       </div>
-                      <PitchView players={teamSummary.players} bootstrap={bootstrap ?? undefined} />
+                      <PitchView
+                        players={teamSummary.players}
+                        bootstrap={bootstrap ?? undefined}
+                        effectivePitchPlayers={teamSummary.effectivePitchPlayers}
+                        effectiveBench={teamSummary.effectiveBench}
+                        replacedStarters={teamSummary.replacedStarters}
+                      />
                     </div>
                   </div>
                   <div
-                    className="lg:w-[480px] lg:flex-shrink-0 lg:min-h-0 lg:overflow-hidden"
-                    style={pitchHeight != null ? { height: pitchHeight, maxHeight: '85vh' } : undefined}
+                    className="lg:w-[480px] lg:flex-shrink-0 lg:min-h-0 flex flex-col min-h-0"
+                    style={
+                      pitchHeight != null
+                        ? { height: pitchHeight + 230, minHeight: pitchHeight }
+                        : undefined
+                    }
                   >
-                    <h2 className="text-lg font-semibold text-white mb-3">Leagues</h2>
+                    <h2 className="text-lg font-semibold text-white mb-3 shrink-0">Leagues</h2>
+                    <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                     <LeagueSelector
                       leagues={entry.leagues?.classic ?? []}
                       teamId={resolvedTeamId}
@@ -170,6 +197,7 @@ export default function Dashboard() {
                       gameweek={effectiveGw}
                       currentUserChip={teamSummary.chip ?? null}
                     />
+                    </div>
                   </div>
                 </section>
                 <section className="mt-8">
@@ -188,6 +216,7 @@ export default function Dashboard() {
                   onGameweekChange={handleGameweekChange}
                   summary={null}
                   gwNetTotal={null}
+                  transfersCost={transfersCost}
                   teamValue={teamValue}
                   isLoading={picksLoading || liveLoading}
                   showShLeagueBadge={entry.leagues?.classic?.some((l) => l.id === 699005)}

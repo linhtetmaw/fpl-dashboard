@@ -42,9 +42,11 @@ interface PlayersNewsProps {
 export default function PlayersNews({ bootstrap, isLoading }: PlayersNewsProps) {
   if (isLoading || !bootstrap) {
     return (
-      <div className="h-full rounded-xl border border-fpl-border bg-fpl-card p-4 flex flex-col justify-center min-h-[200px]">
-        <h3 className="text-sm font-semibold text-white mb-2">Players News</h3>
-        <p className="text-slate-500 text-sm">Loading news…</p>
+      <div className="h-full rounded-xl border border-fpl-border bg-fpl-card overflow-hidden flex flex-col justify-center min-h-[200px]">
+        <h3 className="text-lg font-semibold text-white px-4 py-3 border-b border-fpl-border bg-fpl-card/80">Player News</h3>
+        <div className="p-4">
+          <p className="text-slate-500 text-sm">Loading news…</p>
+        </div>
       </div>
     );
   }
@@ -70,9 +72,9 @@ export default function PlayersNews({ bootstrap, isLoading }: PlayersNewsProps) 
 
   return (
     <div className="h-full flex flex-col rounded-xl border border-fpl-border bg-fpl-card overflow-hidden">
-      <div className="shrink-0 px-4 py-3 border-b border-fpl-border">
-        <h3 className="text-sm font-semibold text-white">Players News</h3>
-        <p className="text-slate-500 text-xs mt-0.5">
+      <div className="shrink-0 px-4 py-3 border-b border-fpl-border bg-fpl-card/80">
+        <h3 className="text-lg font-semibold text-white">Player News</h3>
+        <p className="text-slate-500 text-sm mt-0.5">
           Injuries, suspensions and updates from Premier League (FPL API)
         </p>
       </div>

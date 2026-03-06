@@ -11,6 +11,8 @@ export interface FplEvent {
   is_current: boolean;
   is_next: boolean;
   finished: boolean;
+  /** Element id of the most captained player in this gameweek (from bootstrap-static). */
+  most_captained?: number;
 }
 
 export interface FplElement {
@@ -134,7 +136,8 @@ export interface Pick {
 }
 
 export interface EventLiveResponse {
-  elements: { id: number; stats: LiveStats }[];
+  /** API may use "id" or "element" for player element id */
+  elements: { id?: number; element?: number; stats: LiveStats }[];
 }
 
 export interface LiveStats {
@@ -203,6 +206,8 @@ export interface PlayerPoints {
   total_points_raw: number;
   multiplier: number;
   total_points_effective: number;
+  /** True when this player was on the bench and auto-substituted into the starting XI. */
+  is_substitute?: boolean;
 }
 
 export interface TeamPointsSummary {
@@ -214,6 +219,12 @@ export interface TeamPointsSummary {
   starting_points: number;
   bench_points: number;
   players: PlayerPoints[];
+  /** Starting XI with auto-subs applied (subs appear in the slot they replaced). Use for pitch display. */
+  effectivePitchPlayers: PlayerPoints[];
+  /** Bench players not used as substitutes. Use for bench display under pitch. */
+  effectiveBench: PlayerPoints[];
+  /** Starters who did not play and were replaced by a sub; show their cards on the bench. */
+  replacedStarters: PlayerPoints[];
 }
 
 export type LeagueSortBy = 'event_total' | 'total' | 'monthly' | 'team_value';

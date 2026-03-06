@@ -123,14 +123,12 @@ export function computeTeamPointsSummary(
 
   const liveByElement: Record<number, EventLiveResponse['elements'][0]['stats']> = {};
   live.elements.forEach((el) => {
-    if (el.id != null && el.stats) liveByElement[el.id] = el.stats;
+    const elementId = el.id ?? (el as { element?: number }).element;
+    if (elementId != null && el.stats) liveByElement[elementId] = el.stats;
   });
 
   const chip = picks.chips?.[0]?.name ?? picks.active_chip ?? null;
   const players: PlayerPoints[] = [];
-  let total_points = 0;
-  let starting_points = 0;
-  let bench_points = 0;
 
   for (const pick of picks.picks) {
     const meta = elements[pick.element];
@@ -142,14 +140,12 @@ export function computeTeamPointsSummary(
       bonus: 0,
       total_points: 0,
     };
+    const rawMinutes = stats.minutes;
+    const minutes = typeof rawMinutes === 'number' && Number.isFinite(rawMinutes) ? rawMinutes : Number(rawMinutes) || 0;
     const team_name = meta ? teams[meta.team] ?? 'Unknown' : 'Unknown';
     const web_name = meta?.web_name ?? `#${pick.element}`;
     const is_on_bench = pick.position > 11;
-    const total_effective = stats.total_points * (pick.multiplier || 1);
-
-    total_points += total_effective;
-    if (is_on_bench) bench_points += total_effective;
-    else starting_points += total_effective;
+    const total_effective = (Number(stats.total_points) || 0) * (pick.multiplier || 1);
 
     players.push({
       element_id: pick.element,
@@ -160,7 +156,7 @@ export function computeTeamPointsSummary(
       is_captain: pick.is_captain ?? false,
       is_vice_captain: pick.is_vice_captain ?? false,
       is_on_bench,
-      minutes: stats.minutes,
+      minutes,
       goals_scored: stats.goals_scored,
       assists: stats.assists,
       clean_sheets: stats.clean_sheets,
@@ -171,6 +167,58 @@ export function computeTeamPointsSummary(
     });
   }
 
+  const starting = players.filter((p) => !p.is_on_bench).sort((a, b) => a.position - b.position);
+  const bench = players.filter((p) => p.is_on_bench).sort((a, b) => a.position - b.position);
+  const getMins = (p: PlayerPoints) => (typeof p.minutes === 'number' && Number.isFinite(p.minutes) ? p.minutes : Number(p.minutes) || 0);
+
+  // FPL rule: a bench player can only substitute for a non-playing starter of the same position (GKP→GKP, DEF→DEF, MID→MID, FWD→FWD).
+  // Find first bench player (in bench order) with matching element_type; each bench player used at most once.
+  const usedBenchIndices = new Set<number>();
+  const findBenchSub = (elementType: number): number => {
+    for (let i = 0; i < bench.length; i++) {
+      if (!usedBenchIndices.has(i) && bench[i].element_type === elementType) return i;
+    }
+    return -1;
+  };
+
+  let starting_points = 0;
+  const effectivePitchPlayers: PlayerPoints[] = [];
+  const replacedStarters: PlayerPoints[] = [];
+  for (const starter of starting) {
+    if (getMins(starter) > 0) {
+      effectivePitchPlayers.push(starter);
+      starting_points += starter.total_points_effective;
+    } else {
+      const subIdx = findBenchSub(starter.element_type);
+      if (subIdx >= 0) {
+        usedBenchIndices.add(subIdx);
+        const sub = bench[subIdx];
+        effectivePitchPlayers.push({
+          ...sub,
+          position: starter.position,
+          element_type: starter.element_type,
+          is_on_bench: false,
+          is_substitute: true,
+        });
+        starting_points += sub.total_points_effective;
+        replacedStarters.push(starter);
+      } else {
+        effectivePitchPlayers.push(starter);
+      }
+    }
+  }
+
+  let bench_points = 0;
+  const effectiveBench: PlayerPoints[] = [];
+  for (let i = 0; i < bench.length; i++) {
+    if (usedBenchIndices.has(i)) continue;
+    effectiveBench.push(bench[i]);
+    bench_points += bench[i].total_points_effective;
+  }
+
+  const isBenchBoost = chip != null && /bench\s*boost|bboost/i.test(String(chip));
+  const total_points = starting_points + (isBenchBoost ? bench_points : 0);
+
   return {
     team_id: teamId,
     team_name: entryName,
@@ -180,6 +228,9 @@ export function computeTeamPointsSummary(
     starting_points,
     bench_points,
     players,
+    effectivePitchPlayers,
+    effectiveBench,
+    replacedStarters,
   };
 }
 

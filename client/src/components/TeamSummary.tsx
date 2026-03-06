@@ -8,6 +8,9 @@ const CHIP_LABELS: Record<string, string> = {
   wildcard: 'WC',
 };
 
+/** Team IDs that show the blue "SH Host" badge. */
+const SH_HOST_TEAM_IDS = new Set([883503, 2983091, 3476111, 6633067, 12269690]);
+
 function formatChip(chip: string | null | undefined): string {
   if (!chip) return '—';
   return CHIP_LABELS[chip.toLowerCase()] ?? chip;
@@ -23,6 +26,8 @@ interface TeamSummaryProps {
   summary: TeamPointsSummary | null;
   /** Season total (sum of all GW points); shown as "GW Net Total". */
   gwNetTotal?: number | null;
+  /** Transfer hit cost for selected GW (e.g. 4, 8). Displayed as negative. */
+  transfersCost?: number | null;
   /** Team value for selected GW (raw from API, e.g. 1005 = 100.5). */
   teamValue?: number | null;
   isLoading?: boolean;
@@ -39,10 +44,12 @@ export default function TeamSummary({
   onGameweekChange,
   summary,
   gwNetTotal,
+  transfersCost,
   teamValue,
   isLoading,
   showShLeagueBadge = false,
 }: TeamSummaryProps) {
+  const isShHost = SH_HOST_TEAM_IDS.has(teamId);
   return (
     <section className="rounded-xl bg-fpl-card border border-fpl-border p-4 sm:p-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
@@ -55,6 +62,14 @@ export default function TeamSummary({
                 title="Member of SH League (699005)"
               >
                 SH League
+              </span>
+            )}
+            {isShHost && (
+              <span
+                className="inline-flex items-center rounded px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/50"
+                title="SH Host"
+              >
+                SH Host
               </span>
             )}
           </div>
@@ -92,8 +107,10 @@ export default function TeamSummary({
               <p className="text-xl sm:text-2xl font-bold text-white mt-0.5 sm:mt-1">{gwNetTotal ?? summary.starting_points}</p>
             </div>
             <div className="rounded-lg bg-fpl-dark/60 p-3 sm:p-4">
-              <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-wide">Bench</p>
-              <p className="text-xl sm:text-2xl font-bold text-white mt-0.5 sm:mt-1">{summary.bench_points}</p>
+              <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-wide">Transfers</p>
+              <p className="text-xl sm:text-2xl font-bold text-white mt-0.5 sm:mt-1 tabular-nums">
+                {transfersCost == null ? '—' : transfersCost > 0 ? `-${transfersCost}` : '0'}
+              </p>
             </div>
             <div className="rounded-lg bg-fpl-dark/60 p-3 sm:p-4">
               <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-wide">Chip</p>

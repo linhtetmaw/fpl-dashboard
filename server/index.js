@@ -433,32 +433,75 @@ app.get(['/api/leagues-classic/:id/standings/', '/api/leagues-classic/:id/standi
   }
 });
 
-/** Build live points map: element id -> total_points from event live. */
+/** Build live map: element id -> { minutes, total_points } from event live. Supports id or element key. */
 function buildLiveByElement(liveJson) {
   const map = new Map();
   const elements = liveJson?.elements ?? [];
   for (const el of elements) {
-    if (el.id != null && el.stats?.total_points != null) {
-      map.set(el.id, el.stats.total_points);
+    const elementId = el.id ?? el.element;
+    if (elementId != null && el.stats) {
+      const mins = el.stats.minutes;
+      const minutes = typeof mins === 'number' && Number.isFinite(mins) ? mins : Number(mins) || 0;
+      map.set(elementId, {
+        minutes,
+        total_points: Number(el.stats.total_points) || 0,
+      });
     }
   }
   return map;
 }
 
-/** Compute GW points from picks + live (includes chip: BB adds bench). Returns { chip, points }. */
-function computeGwPointsFromPicks(picksJson, liveByElement) {
+/** Compute GW points from picks + live (includes chip: BB, position-based auto-sub). Returns { chip, points }. */
+function computeGwPointsFromPicks(picksJson, liveByElement, elementTypeById) {
   const rawChip = picksJson?.chips?.[0]?.name ?? picksJson?.active_chip ?? null;
   const chip = rawChip != null ? String(rawChip).trim() : null;
   const picks = picksJson?.picks ?? [];
   const chipLower = chip ? chip.toLowerCase() : '';
   const isBboost = chipLower === 'bboost' || chipLower.includes('bench');
-  let sum = 0;
-  for (const pick of picks) {
-    const pts = (liveByElement.get(pick.element) ?? 0) * (pick.multiplier ?? 1);
-    if (isBboost || (pick.position != null && pick.position <= 11)) {
-      sum += pts;
+
+  const starting = picks.filter((p) => p.position != null && p.position <= 11).sort((a, b) => a.position - b.position);
+  const bench = picks.filter((p) => p.position != null && p.position > 11).sort((a, b) => a.position - b.position);
+  const getType = (pick) => (elementTypeById && elementTypeById.get(pick.element)) ?? 0;
+  const getMins = (pick) => {
+    const entry = liveByElement.get(pick.element);
+    if (!entry) return 0;
+    return typeof entry.minutes === 'number' && Number.isFinite(entry.minutes) ? entry.minutes : Number(entry.minutes) || 0;
+  };
+  const getPts = (pick) => {
+    const entry = liveByElement.get(pick.element);
+    const raw = entry?.total_points ?? 0;
+    return (Number(raw) || 0) * (pick.multiplier ?? 1);
+  };
+
+  // FPL rule: bench player can only sub for a non-playing starter of the same position (GKP→GKP, DEF→DEF, etc.).
+  const usedBenchIndices = new Set();
+  const findBenchSub = (elementType) => {
+    for (let i = 0; i < bench.length; i++) {
+      if (!usedBenchIndices.has(i) && getType(bench[i]) === elementType) return i;
+    }
+    return -1;
+  };
+
+  let startingPoints = 0;
+  for (const p of starting) {
+    if (getMins(p) > 0) {
+      startingPoints += getPts(p);
+    } else {
+      const subIdx = findBenchSub(getType(p));
+      if (subIdx >= 0) {
+        usedBenchIndices.add(subIdx);
+        startingPoints += getPts(bench[subIdx]);
+      }
     }
   }
+
+  let benchPoints = 0;
+  for (let i = 0; i < bench.length; i++) {
+    if (usedBenchIndices.has(i)) continue;
+    benchPoints += getPts(bench[i]);
+  }
+
+  const sum = startingPoints + (isBboost ? benchPoints : 0);
   return { chip, points: sum };
 }
 
@@ -505,10 +548,20 @@ app.get('/api/leagues-classic/:id/standings-with-chips', async (req, res) => {
       return res.json(data);
     }
 
-    const liveRes = await fetch(`${FPL_BASE}/event/${gw}/live/`, { headers });
+    const [liveRes, bootstrapRes] = await Promise.all([
+      fetch(`${FPL_BASE}/event/${gw}/live/`, { headers }),
+      fetch(`${FPL_BASE}/bootstrap-static/`, { headers }),
+    ]);
     const liveJson = liveRes.ok ? await liveRes.json() : null;
     const liveByElement = buildLiveByElement(liveJson);
     const hasLiveData = liveByElement.size > 0;
+    const bootstrap = bootstrapRes.ok ? await bootstrapRes.json() : null;
+    const elementTypeById = new Map();
+    if (bootstrap?.elements?.length) {
+      for (const el of bootstrap.elements) {
+        if (el.id != null && el.element_type != null) elementTypeById.set(el.id, el.element_type);
+      }
+    }
 
     const CONCURRENCY = 10;
     for (let i = 0; i < results.length; i += CONCURRENCY) {
@@ -523,10 +576,11 @@ app.get('/api/leagues-classic/:id/standings-with-chips', async (req, res) => {
             const pickData = pickRes.ok ? await pickRes.json() : null;
             const histData = histRes.ok ? await histRes.json() : null;
             const cur = (histData?.current ?? []).find((c) => c.event === gw);
-            const eventTransfersCost = cur?.event_transfers_cost != null ? Number(cur.event_transfers_cost) : 0;
-            const { chip, points } = computeGwPointsFromPicks(pickData, liveByElement);
-            const eventTotal = Math.max(0, points - eventTransfersCost);
+            const eventTransfersCost =
+              cur?.event_transfers_cost != null ? Number(cur.event_transfers_cost) : 0;
+            const { chip, points } = computeGwPointsFromPicks(pickData, liveByElement, elementTypeById);
             const useComputed = hasLiveData && pickData?.picks?.length > 0;
+            const eventTotal = Math.max(0, points - eventTransfersCost);
             return { chip, event_total: useComputed ? eventTotal : r.event_total };
           } catch (_) {
             return { chip: null, event_total: r.event_total };

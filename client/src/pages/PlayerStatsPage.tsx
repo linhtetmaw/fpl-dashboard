@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useBootstrapStatic } from '../hooks/useFplApi';
+import { useBootstrapStatic, getCurrentEvent } from '../hooks/useFplApi';
 import PlayersNews from '../components/PlayersNews';
-import type { FplElement, FplTeam } from '../types/fpl';
+import type { FplElement, FplEvent, FplTeam } from '../types/fpl';
 
 const TOP_N = 10;
 /** Approx rows visible in first view before scrolling (row height ~36px). */
@@ -25,34 +25,130 @@ function TransfersTable({
 }) {
   return (
     <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden">
-      <h3 className="text-base font-semibold text-white px-4 py-3 border-b border-fpl-border bg-fpl-card/80">
+      <h3 className="text-sm font-semibold text-white px-3 py-2 border-b border-fpl-border bg-fpl-card/80">
         {title}
       </h3>
       <div className="overflow-x-auto">
-        <table className="w-full text-left">
+        <table className="w-full text-left text-xs">
           <thead>
-            <tr className="text-slate-400 text-sm border-b border-fpl-border">
-              <th className="px-4 py-2.5 font-medium">Player</th>
-              <th className="px-4 py-2.5 font-medium text-right">{countLabel}</th>
+            <tr className="text-slate-400 border-b border-fpl-border">
+              <th className="px-3 py-2 font-medium">Player</th>
+              <th className="px-3 py-2 font-medium text-right">{countLabel}</th>
             </tr>
           </thead>
           <tbody>
             {rows.length === 0 ? (
               <tr>
-                <td colSpan={2} className="px-4 py-6 text-slate-500 text-center text-sm">
+                <td colSpan={2} className="px-3 py-4 text-slate-500 text-center">
                   No data for this gameweek yet
                 </td>
               </tr>
             ) : (
               rows.map((row, i) => (
                 <tr key={i} className="border-b border-fpl-border/60 last:border-0">
-                  <td className="px-4 py-2.5 text-white">{row.name}</td>
-                  <td className="px-4 py-2.5 text-slate-300 text-right tabular-nums">
+                  <td className="px-3 py-2 text-white">{row.name}</td>
+                  <td className="px-3 py-2 text-slate-300 text-right tabular-nums">
                     {row.count.toLocaleString()}
                   </td>
                 </tr>
               ))
             )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+/** Build player photo URL for api/player-photo (same params as PitchView). */
+function getPlayerPhotoUrl(element: FplElement | null, teamName: string | undefined): string | null {
+  if (!element) return null;
+  const first = element.first_name?.trim() ?? '';
+  const second = element.second_name?.trim() ?? '';
+  const name = first && second ? `${first}_${second}`.replace(/\s+/g, '_') : element.web_name?.replace(/\s+/g, '_') ?? '';
+  const rawCode = element.code ?? element.photo;
+  const code =
+    typeof rawCode === 'number'
+      ? String(rawCode)
+      : typeof rawCode === 'string'
+        ? rawCode.replace(/\D/g, '')
+        : '';
+  if (!name && !code) return null;
+  const params = new URLSearchParams();
+  if (name) params.set('name', name);
+  if (code) params.set('code', code);
+  if (teamName?.trim()) params.set('team', teamName.trim());
+  return `/api/player-photo?${params.toString()}`;
+}
+
+/** Single row: most captained player for current GW and previous GW, with player image. */
+function TopCaptainedTable({
+  currentLabel,
+  currentPlayer,
+  previousLabel,
+  previousPlayer,
+}: {
+  currentLabel: string;
+  currentPlayer: { name: string; photoUrl: string | null } | null;
+  previousLabel: string;
+  previousPlayer: { name: string; photoUrl: string | null } | null;
+}) {
+  return (
+    <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden">
+      <h3 className="text-lg font-semibold text-white px-4 py-3 border-b border-fpl-border bg-fpl-card/80">
+        Top captained players
+      </h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-left">
+          <thead>
+            <tr className="text-slate-400 text-sm border-b border-fpl-border">
+              <th className="px-4 py-2.5 font-medium">{currentLabel}</th>
+              <th className="px-4 py-2.5 font-medium">{previousLabel}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="border-b border-fpl-border/60 last:border-0">
+              <td className="px-4 py-2.5">
+                {currentPlayer ? (
+                  <div className="flex items-center gap-3">
+                    {currentPlayer.photoUrl ? (
+                      <img
+                        src={currentPlayer.photoUrl}
+                        alt=""
+                        className="w-10 h-10 rounded-full object-cover bg-fpl-dark shrink-0"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    ) : null}
+                    <span className="text-white">{currentPlayer.name}</span>
+                  </div>
+                ) : (
+                  <span className="text-slate-500">—</span>
+                )}
+              </td>
+              <td className="px-4 py-2.5">
+                {previousPlayer ? (
+                  <div className="flex items-center gap-3">
+                    {previousPlayer.photoUrl ? (
+                      <img
+                        src={previousPlayer.photoUrl}
+                        alt=""
+                        className="w-10 h-10 rounded-full object-cover bg-fpl-dark shrink-0"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                        }}
+                      />
+                    ) : null}
+                    <span className="text-white">{previousPlayer.name}</span>
+                  </div>
+                ) : (
+                  <span className="text-slate-500">—</span>
+                )}
+              </td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -173,7 +269,7 @@ function PlayerStatsTable({
 
   return (
     <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden min-w-0 w-full">
-      <h3 className="text-base font-semibold text-white px-4 py-3 border-b border-fpl-border bg-fpl-card/80">
+      <h3 className="text-lg font-semibold text-white px-4 py-3 border-b border-fpl-border bg-fpl-card/80">
         Player Stats
       </h3>
       <div className="px-4 py-3 flex flex-wrap gap-3 border-b border-fpl-border/60">
@@ -353,7 +449,7 @@ export default function PlayerStatsPage() {
   const [positionFilter, setPositionFilter] = useState<string>('');
   const [teamFilter, setTeamFilter] = useState<string>('');
 
-  const { topIn, topOut } = useMemo(() => {
+  const { topIn, topOut, topTransferredInPlayer, topTransferredOutPlayer } = useMemo(() => {
     const elements: FplElement[] = bootstrap?.elements ?? [];
     const teams = new Map((bootstrap?.teams ?? []).map((t) => [t.id, t.name]));
 
@@ -379,30 +475,189 @@ export default function PlayerStatsPage() {
       return teamName ? `${e.web_name} (${teamName})` : e.web_name;
     };
 
+    const firstIn = withIn[0];
+    const firstOut = withOut[0];
+    const topTransferredInPlayer =
+      firstIn != null
+        ? {
+            name: firstIn.element.web_name,
+            fullName: name(firstIn.element),
+            photoUrl: getPlayerPhotoUrl(firstIn.element, teams.get(firstIn.element.team)),
+            price: firstIn.element.now_cost != null ? firstIn.element.now_cost / 10 : null,
+            totalPoints: firstIn.element.total_points ?? null,
+          }
+        : null;
+    const topTransferredOutPlayer =
+      firstOut != null
+        ? {
+            name: firstOut.element.web_name,
+            fullName: name(firstOut.element),
+            photoUrl: getPlayerPhotoUrl(firstOut.element, teams.get(firstOut.element.team)),
+            price: firstOut.element.now_cost != null ? firstOut.element.now_cost / 10 : null,
+            totalPoints: firstOut.element.total_points ?? null,
+          }
+        : null;
+
     return {
       topIn: withIn.map((x) => ({ name: name(x.element), count: x.count })),
       topOut: withOut.map((x) => ({ name: name(x.element), count: x.count })),
+      topTransferredInPlayer,
+      topTransferredOutPlayer,
+    };
+  }, [bootstrap]);
+
+  const { currentGwLabel, currentCaptainedPlayer, previousGwLabel, previousCaptainedPlayer } = useMemo(() => {
+    const events: FplEvent[] = bootstrap?.events ?? [];
+    const elements: FplElement[] = bootstrap?.elements ?? [];
+    const teams = new Map((bootstrap?.teams ?? []).map((t) => [t.id, t.name]));
+    const currentGwId = getCurrentEvent(bootstrap ?? undefined);
+    const previousGwId = currentGwId != null && currentGwId > 1 ? currentGwId - 1 : null;
+
+    const eventCurrent = currentGwId != null ? events.find((e) => e.id === currentGwId) : null;
+    const eventPrevious = previousGwId != null ? events.find((e) => e.id === previousGwId) : null;
+
+    const getPlayer = (elementId: number) => {
+      const el = elements.find((e) => e.id === elementId);
+      if (!el) return null;
+      const teamName = teams.get(el.team);
+      const name = teamName ? `${el.web_name} (${teamName})` : el.web_name;
+      const photoUrl = getPlayerPhotoUrl(el, teamName ?? undefined);
+      return { name, photoUrl };
+    };
+
+    const currentLabel = eventCurrent ? `Current GW (${eventCurrent.name})` : 'Current gameweek';
+    const previousLabel = eventPrevious ? `Previous GW (${eventPrevious.name})` : 'Previous gameweek';
+    const currentCaptainedPlayer =
+      eventCurrent?.most_captained != null ? getPlayer(eventCurrent.most_captained) : null;
+    const previousCaptainedPlayer =
+      eventPrevious?.most_captained != null ? getPlayer(eventPrevious.most_captained) : null;
+
+    return {
+      currentGwLabel: currentLabel,
+      currentCaptainedPlayer,
+      previousGwLabel: previousLabel,
+      previousCaptainedPlayer,
     };
   }, [bootstrap]);
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
       <section>
-        <h2 className="text-lg font-semibold text-white mb-3">Transfers (current gameweek)</h2>
-        <p className="text-slate-400 text-sm mb-4">
+        <div className="mb-6">
+          <TopCaptainedTable
+            currentLabel={currentGwLabel}
+            currentPlayer={currentCaptainedPlayer}
+            previousLabel={previousGwLabel}
+            previousPlayer={previousCaptainedPlayer}
+          />
+        </div>
+
+        <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden">
+          <h3 className="text-lg font-semibold text-white px-4 py-3 border-b border-fpl-border bg-fpl-card/80">
+            Transfers (Current Gameweek)
+          </h3>
+          <p className="text-slate-400 text-sm px-4 py-2">
             Data refreshes every 24 hours.
-        </p>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <TransfersTable
-            title="Top Transferred In"
-            rows={topIn}
-            countLabel="Transferred in"
-          />
-          <TransfersTable
-            title="Top Transferred Out"
-            rows={topOut}
-            countLabel="Transferred out"
-          />
+          </p>
+          {/* Top transferred in/out – player cards (PitchView style) with price & points; side by side on all viewports */}
+          <div className="grid grid-cols-2 gap-2 sm:gap-4 px-4 pb-2">
+            <div className="flex flex-col items-center min-w-0">
+              <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1 sm:mb-2">Top transferred in</p>
+              {topTransferredInPlayer ? (
+                <div className="flex flex-col items-center rounded-lg border border-fpl-border bg-fpl-dark/80 px-2 py-2 sm:px-3 sm:py-3 flex-shrink-0 hover:border-fpl-accent/50 hover:bg-fpl-dark transition-colors w-full max-w-[180px] mx-auto">
+                  <div className="relative rounded overflow-hidden bg-fpl-dark border border-fpl-border flex-shrink-0 w-12 h-14 sm:w-14 sm:h-[68px] md:w-16 md:h-20">
+                    {topTransferredInPlayer.photoUrl ? (
+                      <img
+                        src={topTransferredInPlayer.photoUrl}
+                        alt={topTransferredInPlayer.name}
+                        className="w-full h-full object-cover object-top"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const img = e.target as HTMLImageElement;
+                          img.style.display = 'none';
+                          const fallback = img.nextElementSibling;
+                          if (fallback instanceof HTMLElement) fallback.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className={`absolute inset-0 flex items-center justify-center bg-fpl-card text-slate-400 font-bold text-xs ${topTransferredInPlayer.photoUrl ? 'hidden' : ''}`}
+                      aria-hidden={!!topTransferredInPlayer.photoUrl}
+                    >
+                      {topTransferredInPlayer.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  </div>
+                  <p className="mt-1 sm:mt-1.5 text-slate-300 truncate text-center max-w-full text-[10px] sm:text-xs font-medium" title={topTransferredInPlayer.fullName}>
+                    {topTransferredInPlayer.name}
+                  </p>
+                  <div className="flex items-center gap-1 sm:gap-2 mt-0.5 sm:mt-1 text-[10px] sm:text-xs flex-wrap justify-center">
+                    {topTransferredInPlayer.price != null && (
+                      <span className="text-slate-400">£{topTransferredInPlayer.price.toFixed(1)}</span>
+                    )}
+                    {topTransferredInPlayer.totalPoints != null && (
+                      <span className="font-semibold" style={{ color: '#f37025' }}>{topTransferredInPlayer.totalPoints} pts</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <span className="text-slate-500 text-xs sm:text-sm py-2 sm:py-4">No data yet</span>
+              )}
+            </div>
+            <div className="flex flex-col items-center min-w-0">
+              <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1 sm:mb-2">Top transferred out</p>
+              {topTransferredOutPlayer ? (
+                <div className="flex flex-col items-center rounded-lg border border-fpl-border bg-fpl-dark/80 px-2 py-2 sm:px-3 sm:py-3 flex-shrink-0 hover:border-fpl-accent/50 hover:bg-fpl-dark transition-colors w-full max-w-[180px] mx-auto">
+                  <div className="relative rounded overflow-hidden bg-fpl-dark border border-fpl-border flex-shrink-0 w-12 h-14 sm:w-14 sm:h-[68px] md:w-16 md:h-20">
+                    {topTransferredOutPlayer.photoUrl ? (
+                      <img
+                        src={topTransferredOutPlayer.photoUrl}
+                        alt={topTransferredOutPlayer.name}
+                        className="w-full h-full object-cover object-top"
+                        referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          const img = e.target as HTMLImageElement;
+                          img.style.display = 'none';
+                          const fallback = img.nextElementSibling;
+                          if (fallback instanceof HTMLElement) fallback.classList.remove('hidden');
+                        }}
+                      />
+                    ) : null}
+                    <div
+                      className={`absolute inset-0 flex items-center justify-center bg-fpl-card text-slate-400 font-bold text-xs ${topTransferredOutPlayer.photoUrl ? 'hidden' : ''}`}
+                      aria-hidden={!!topTransferredOutPlayer.photoUrl}
+                    >
+                      {topTransferredOutPlayer.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  </div>
+                  <p className="mt-1 sm:mt-1.5 text-slate-300 truncate text-center max-w-full text-[10px] sm:text-xs font-medium" title={topTransferredOutPlayer.fullName}>
+                    {topTransferredOutPlayer.name}
+                  </p>
+                  <div className="flex items-center gap-1 sm:gap-2 mt-0.5 sm:mt-1 text-[10px] sm:text-xs flex-wrap justify-center">
+                    {topTransferredOutPlayer.price != null && (
+                      <span className="text-slate-400">£{topTransferredOutPlayer.price.toFixed(1)}</span>
+                    )}
+                    {topTransferredOutPlayer.totalPoints != null && (
+                      <span className="font-semibold" style={{ color: '#f37025' }}>{topTransferredOutPlayer.totalPoints} pts</span>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <span className="text-slate-500 text-xs sm:text-sm py-2 sm:py-4">No data yet</span>
+              )}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 pt-0">
+            <TransfersTable
+              title="Top Transferred In"
+              rows={topIn}
+              countLabel="Transferred in"
+            />
+            <TransfersTable
+              title="Top Transferred Out"
+              rows={topOut}
+              countLabel="Transferred out"
+            />
+          </div>
         </div>
       </section>
 
@@ -418,7 +673,6 @@ export default function PlayerStatsPage() {
       </section>
 
       <section className="mt-8 h-[50vh] min-h-[280px] max-h-[520px] flex flex-col">
-        <h2 className="text-lg font-semibold text-white mb-3">Players News</h2>
         <PlayersNews bootstrap={bootstrap ?? undefined} isLoading={bootstrapLoading} />
       </section>
 

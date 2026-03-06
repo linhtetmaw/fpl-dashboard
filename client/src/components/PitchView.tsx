@@ -52,11 +52,22 @@ function getBenchPlayers(players: PlayerPoints[]): PlayerPoints[] {
 interface PitchViewProps {
   players: PlayerPoints[];
   bootstrap: BootstrapStatic | undefined;
+  /** When set, use these 11 for the pitch (with auto-subs in place) and bench section below. */
+  effectivePitchPlayers?: PlayerPoints[];
+  /** Bench players not used as subs. Shown after replacedStarters on the bench. */
+  effectiveBench?: PlayerPoints[];
+  /** Starters who did not play and were replaced; show their cards on the bench (non-starting players moved to bench). */
+  replacedStarters?: PlayerPoints[];
 }
 
-export default function PitchView({ players, bootstrap }: PitchViewProps) {
+export default function PitchView({ players, bootstrap, effectivePitchPlayers, effectiveBench, replacedStarters }: PitchViewProps) {
   const [selectedElementId, setSelectedElementId] = useState<number | null>(null);
-  const rows = getFormationRows(players);
+  const pitchPlayers = effectivePitchPlayers?.length === 11 ? effectivePitchPlayers : players.filter((p) => !p.is_on_bench).sort((a, b) => a.position - b.position);
+  const hasEffective = effectivePitchPlayers?.length === 11;
+  const benchUnused = hasEffective ? (effectiveBench ?? []) : [];
+  const replaced = hasEffective ? (replacedStarters ?? []) : [];
+  const benchPlayers = benchUnused.length > 0 || replaced.length > 0 ? [...replaced, ...benchUnused] : getBenchPlayers(players);
+  const rows = getFormationRows(pitchPlayers);
   const [gkRow, defRow, midRow, fwdRow] = rows;
   const elementById = new Map<number, FplElement>(
     (bootstrap?.elements ?? []).map((e) => [e.id, e])
@@ -65,7 +76,7 @@ export default function PitchView({ players, bootstrap }: PitchViewProps) {
     (bootstrap?.teams ?? []).map((t) => [t.id, t.name])
   );
 
-  const bench = getBenchPlayers(players);
+  const bench = benchPlayers;
   const selectedElement = selectedElementId != null ? elementById.get(selectedElementId) : null;
   const selectedTeamName = selectedElement != null ? teamById.get(selectedElement.team) : undefined;
 
@@ -75,24 +86,26 @@ export default function PitchView({ players, bootstrap }: PitchViewProps) {
 
   const renderPlayerCard = (
     p: PlayerPoints,
-    opts: { imageSize?: string; nameClass?: string; pointsClass?: string; maxNameWidth?: string }
+    opts: { imageSize?: string; nameClass?: string; pointsClass?: string; maxNameWidth?: string; isReplaced?: boolean }
   ) => {
     const {
       imageSize = 'w-12 h-14 sm:w-14 sm:h-[68px]',
       nameClass = 'text-xs font-medium',
       pointsClass = 'text-xs font-semibold',
       maxNameWidth = 'max-w-[72px]',
+      isReplaced = false,
     } = opts;
     const element = elementById.get(p.element_id);
     const teamName = element ? teamById.get(element.team) : undefined;
     const imageUrl = getPlayerImageUrl(element, teamName);
+    const isSub = p.is_substitute === true;
     return (
       <button
         type="button"
-        key={`${p.element_id}-${p.position}`}
+        key={`${p.element_id}-${p.position}-${isSub ? 'sub' : ''}-${isReplaced ? 'repl' : ''}`}
         className={`${cardBoxClass} text-left`}
         onClick={() => element && setSelectedElementId(p.element_id)}
-        title="View player details"
+        title={isSub ? 'Auto-sub (replaced non-playing starter)' : isReplaced ? 'Did not play (replaced by sub)' : 'View player details'}
       >
         <div
           className={`relative rounded overflow-hidden bg-fpl-dark border border-fpl-border flex-shrink-0 ${imageSize}`}
@@ -125,6 +138,16 @@ export default function PitchView({ players, bootstrap }: PitchViewProps) {
           {p.is_vice_captain && (
             <span className="absolute top-0 left-0 bg-slate-500/90 text-white text-[8px] font-bold px-0.5 rounded-br">
               VC
+            </span>
+          )}
+          {isSub && (
+            <span className="absolute bottom-0 left-0 right-0 bg-amber-500/90 text-slate-900 text-[8px] font-bold py-0.5 text-center">
+              SUB
+            </span>
+          )}
+          {isReplaced && (
+            <span className="absolute bottom-0 left-0 right-0 bg-slate-500/90 text-white text-[8px] font-bold py-0.5 text-center">
+              0 min
             </span>
           )}
         </div>
@@ -168,16 +191,17 @@ export default function PitchView({ players, bootstrap }: PitchViewProps) {
         </div>
       </div>
 
-      {/* Bench: same card style as pitch, slightly larger */}
+      {/* Bench: replaced starters (did not play) first, then unused bench players */}
       {bench.length > 0 && (
         <div className="border-t border-fpl-border bg-fpl-card/80 px-3 py-3 sm:px-5 sm:py-4">
           <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-            {bench.map((p) =>
+            {bench.map((p, i) =>
               renderPlayerCard(p, {
                 imageSize: 'w-12 h-14 sm:w-14 sm:h-[72px]',
                 nameClass: 'text-xs font-medium',
                 pointsClass: 'text-xs font-semibold',
                 maxNameWidth: 'max-w-[76px]',
+                isReplaced: i < replaced.length,
               })
             )}
           </div>

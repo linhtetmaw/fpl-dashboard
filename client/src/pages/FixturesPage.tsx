@@ -110,8 +110,126 @@ export default function FixturesPage() {
 
   return (
     <main className="max-w-6xl mx-auto px-4 py-8">
+      {/* Fixtures table */}
+      <div className="rounded-xl border border-fpl-border bg-fpl-card p-6 md:p-4 mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 md:mb-3">
+          <h1 className="text-xl font-semibold text-white">Fixtures</h1>
+          <div className="flex items-center gap-2">
+            <select
+              id="fixtures-gw-select"
+              value={effectiveGw}
+              onChange={(e) => handleGameweekChange(Number(e.target.value))}
+              className="select-arrow-white px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
+            >
+              {events.length === 0 ? (
+                <option value={effectiveGw}>Gameweek {effectiveGw}</option>
+              ) : (
+                events.map((ev) => (
+                  <option key={ev.id} value={ev.id}>
+                    {ev.name}
+                  </option>
+                ))
+              )}
+            </select>
+            <select
+              id="fixtures-tz-select"
+              value={timezone}
+              onChange={(e) => handleTimezoneChange(e.target.value)}
+              className="select-arrow-white px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
+            >
+              {TIMEZONES.map((tz) => (
+                <option key={tz.value} value={tz.value}>
+                  {tz.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {bootstrapError && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-amber-500/20 text-amber-200 text-sm">
+            Failed to load game data. Please refresh the page.
+          </div>
+        )}
+
+        {error && (
+          <div className="mb-4 px-4 py-3 rounded-lg bg-rose-500/20 text-rose-200 text-sm">
+            Failed to load fixtures. Please try again.
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="space-y-3 md:space-y-1.5">
+            {[1, 2, 3, 4, 5].map((i) => (
+              <div
+                key={i}
+                className="h-16 md:h-12 rounded-lg bg-fpl-dark/60 animate-pulse"
+              />
+            ))}
+          </div>
+        )}
+
+        {!isLoading && fixtures && (
+          <>
+            {fixtures.length === 0 ? (
+              <p className="text-slate-400 text-center py-8">
+                No fixtures for this gameweek.
+              </p>
+            ) : (
+              <ul className="space-y-3 md:space-y-1.5">
+                {fixtures.map((f: FplFixture) => (
+                  <li
+                    key={f.id}
+                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 md:gap-2 p-4 md:py-2 md:px-3 rounded-lg bg-fpl-dark/60 border border-fpl-border/60"
+                  >
+                    <div className="text-slate-400 text-xs sm:text-base md:text-sm shrink-0 w-32 md:w-28">
+                      {formatKickoff(f.kickoff_time, timezone)}
+                    </div>
+                    <div className="flex-1 flex items-center justify-between sm:justify-center gap-2 sm:gap-6 md:gap-3">
+                      <div className="flex items-center gap-2 min-w-0 flex-1 justify-end sm:justify-end">
+                        <span className="text-white font-medium truncate text-right text-xs sm:text-base md:text-sm">
+                          {getTeamName(teams, f.team_h)}
+                        </span>
+                        <img
+                          src={`/api/badge/${f.team_h}?v=2`}
+                          alt=""
+                          className="w-8 h-8 sm:w-10 sm:h-10 md:w-8 md:h-8 object-contain shrink-0"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                      </div>
+                      <span className="text-slate-300 font-mono shrink-0 px-1 md:text-sm">
+                        {f.finished
+                          ? `${f.team_h_score ?? '–'} – ${f.team_a_score ?? '–'}`
+                          : 'vs'}
+                      </span>
+                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                        <img
+                          src={`/api/badge/${f.team_a}?v=2`}
+                          alt=""
+                          className="w-8 h-8 sm:w-10 sm:h-10 md:w-8 md:h-8 object-contain shrink-0"
+                          referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).style.display = 'none';
+                          }}
+                        />
+                        <span className="text-white font-medium truncate text-xs sm:text-base md:text-sm">
+                          {getTeamName(teams, f.team_a)}
+                        </span>
+                      </div>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
+        )}
+      </div>
+
       {/* FDR table */}
-      <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden mb-8">
+      <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden">
         <h2 className="text-lg font-semibold text-white px-4 py-3 border-b border-fpl-border">
           FDR Table
         </h2>
@@ -178,123 +296,6 @@ export default function FixturesPage() {
             </tbody>
           </table>
         </div>
-      </div>
-
-      <div className="rounded-xl border border-fpl-border bg-fpl-card p-6">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-          <h1 className="text-xl font-semibold text-white">Fixtures</h1>
-          <div className="flex items-center gap-2">
-            <select
-              id="fixtures-gw-select"
-              value={effectiveGw}
-              onChange={(e) => handleGameweekChange(Number(e.target.value))}
-              className="select-arrow-white px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
-            >
-              {events.length === 0 ? (
-                <option value={effectiveGw}>Gameweek {effectiveGw}</option>
-              ) : (
-                events.map((ev) => (
-                  <option key={ev.id} value={ev.id}>
-                    {ev.name}
-                  </option>
-                ))
-              )}
-            </select>
-            <select
-              id="fixtures-tz-select"
-              value={timezone}
-              onChange={(e) => handleTimezoneChange(e.target.value)}
-              className="select-arrow-white px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
-            >
-              {TIMEZONES.map((tz) => (
-                <option key={tz.value} value={tz.value}>
-                  {tz.label}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        {bootstrapError && (
-          <div className="mb-4 px-4 py-3 rounded-lg bg-amber-500/20 text-amber-200 text-sm">
-            Failed to load game data. Please refresh the page.
-          </div>
-        )}
-
-        {error && (
-          <div className="mb-4 px-4 py-3 rounded-lg bg-rose-500/20 text-rose-200 text-sm">
-            Failed to load fixtures. Please try again.
-          </div>
-        )}
-
-        {isLoading && (
-          <div className="space-y-3">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="h-16 rounded-lg bg-fpl-dark/60 animate-pulse"
-              />
-            ))}
-          </div>
-        )}
-
-        {!isLoading && fixtures && (
-          <>
-            {fixtures.length === 0 ? (
-              <p className="text-slate-400 text-center py-8">
-                No fixtures for this gameweek.
-              </p>
-            ) : (
-              <ul className="space-y-3">
-                {fixtures.map((f: FplFixture) => (
-                  <li
-                    key={f.id}
-                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 p-4 rounded-lg bg-fpl-dark/60 border border-fpl-border/60"
-                  >
-                    <div className="text-slate-400 text-xs sm:text-base shrink-0 w-32">
-                      {formatKickoff(f.kickoff_time, timezone)}
-                    </div>
-                    <div className="flex-1 flex items-center justify-between sm:justify-center gap-2 sm:gap-6">
-                      <div className="flex items-center gap-2 min-w-0 flex-1 justify-end sm:justify-end">
-                        <span className="text-white font-medium truncate text-right text-xs sm:text-base">
-                          {getTeamName(teams, f.team_h)}
-                        </span>
-                        <img
-                          src={`/api/badge/${f.team_h}?v=2`}
-                          alt=""
-                          className="w-8 h-8 sm:w-10 sm:h-10 object-contain shrink-0"
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      </div>
-                      <span className="text-slate-300 font-mono shrink-0 px-1">
-                        {f.finished
-                          ? `${f.team_h_score ?? '–'} – ${f.team_a_score ?? '–'}`
-                          : 'vs'}
-                      </span>
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <img
-                          src={`/api/badge/${f.team_a}?v=2`}
-                          alt=""
-                          className="w-8 h-8 sm:w-10 sm:h-10 object-contain shrink-0"
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                        <span className="text-white font-medium truncate text-xs sm:text-base">
-                          {getTeamName(teams, f.team_a)}
-                        </span>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
-        )}
       </div>
     </main>
   );

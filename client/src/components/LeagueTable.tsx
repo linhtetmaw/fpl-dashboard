@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, useQueries } from '@tanstack/react-query';
 import type { BootstrapStatic } from '../types/fpl';
 import type { LeagueSortBy } from '../types/fpl';
-import { getLeagueStandingsWithChips, getLeagueStandings, getEntryHistory, getTeamPicks } from '../api/fpl';
+import { getLeagueStandingsWithChips, getLeagueStandings, getLeagueStandingsAllPages, getEntryHistory, getTeamPicks } from '../api/fpl';
 
 interface LeagueTableProps {
   leagueId: number;
@@ -57,7 +57,8 @@ function getCurrentMonthGameweekIds(bootstrap: BootstrapStatic): number[] {
 }
 
 export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, gameweek, currentUserChip }: LeagueTableProps) {
-  const [sortBy, setSortBy] = useState<LeagueSortBy>('total');
+  /** Default to Current GW so the top row is highest scorer in the selected gameweek, not overall. */
+  const [sortBy, setSortBy] = useState<LeagueSortBy>('event_total');
 
   const { data: standingsData, isLoading: standingsLoading } = useQuery({
     queryKey: ['fpl', 'standings-with-chips', leagueId, 1, gameweek],
@@ -65,7 +66,9 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
       try {
         return await getLeagueStandingsWithChips(leagueId, 1, gameweek);
       } catch {
-        return await getLeagueStandings(leagueId, 1);
+        const allResults = await getLeagueStandingsAllPages(leagueId);
+        const first = await getLeagueStandings(leagueId, 1);
+        return { league: first.league, standings: { results: allResults, has_next: false } };
       }
     },
     enabled: leagueId > 0 && gameweek > 0,
@@ -73,6 +76,14 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
 
   const results = standingsData?.standings?.results ?? [];
   const entryIds = results.map((r) => r.entry);
+
+  /** Set of entry ids that have the highest event_total (current GW) in this league. */
+  const gwWinnerEntries = useMemo(() => {
+    if (results.length === 0) return new Set<number>();
+    const maxPoints = Math.max(...results.map((r) => r.event_total ?? 0));
+    const winners = new Set(results.filter((r) => (r.event_total ?? 0) === maxPoints).map((r) => r.entry));
+    return winners;
+  }, [results]);
 
   const historyQueries = useQueries({
     queries:
@@ -157,7 +168,7 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
     }));
 
     if (sortBy === 'event_total' || sortBy === 'monthly') {
-      return [...base].sort((a, b) => b.points - a.points);
+      return [...base].sort((a, b) => (Number(b.points) || 0) - (Number(a.points) || 0));
     }
     if (sortBy === 'team_value') {
       return [...base].sort((a, b) => (b.teamValue ?? 0) - (a.teamValue ?? 0));
@@ -170,14 +181,14 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
 
   return (
     <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden h-full flex flex-col min-h-0">
-      <div className="shrink-0 p-4 border-b border-fpl-border flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="text-slate-400 text-sm">Sort by</span>
+      <div className="shrink-0 p-2 sm:p-3 border-b border-fpl-border flex flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-slate-400 text-xs">Sort by</span>
         {(['total', 'event_total', 'monthly', 'team_value'] as const).map((key) => (
           <button
             key={key}
             onClick={() => setSortBy(key)}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
               sortBy === key
                 ? 'bg-fpl-accent text-white'
                 : 'bg-fpl-dark/60 text-slate-400 hover:text-slate-200'
@@ -188,27 +199,27 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
         ))}
         </div>
         {onTeamClick && (
-          <span className="text-slate-500 text-xs">Click a row to view that team</span>
+          <span className="text-slate-500 text-[10px]">Click a row to view that team</span>
         )}
       </div>
 
       {standingsLoading && (
-        <div className="p-8 text-slate-400 text-center">Loading standings…</div>
+        <div className="p-4 text-slate-400 text-center text-xs">Loading standings…</div>
       )}
 
       {!standingsLoading && rows.length === 0 && (
-        <div className="p-8 text-slate-400 text-center">No standings data.</div>
+        <div className="p-4 text-slate-400 text-center text-xs">No standings data.</div>
       )}
 
       {!standingsLoading && rows.length > 0 && (
-        <div className="league-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto pb-6">
-          <table className="w-full text-sm">
+        <div className="league-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto pb-2 md:pb-4">
+          <table className="w-full text-xs">
             <thead>
               <tr className="bg-fpl-dark/60 border-b border-fpl-border text-slate-400 text-left">
-                <th className="px-4 py-3 font-medium w-16">#</th>
-                <th className="px-4 py-3 font-medium">Team</th>
-                <th className="px-4 py-3 font-medium text-right">Points</th>
-                <th className="px-4 py-3 font-medium text-right w-20">Team value</th>
+                <th className="px-2 py-1.5 font-medium w-10">#</th>
+                <th className="px-2 py-1.5 font-medium">Team</th>
+                <th className="px-2 py-1.5 font-medium text-right w-14">Points</th>
+                <th className="px-2 py-1.5 font-medium text-right w-16">Team value</th>
               </tr>
             </thead>
             <tbody>
@@ -225,30 +236,35 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
                       row.isCurrentUser ? 'bg-fpl-accent/20' : idx % 2 === 1 ? 'bg-fpl-dark/20' : ''
                     } ${onTeamClick ? 'cursor-pointer hover:bg-fpl-accent/10' : ''}`}
                   >
-                    <td className="px-4 py-2.5 text-slate-400 font-medium">
-                      <span className="inline-flex items-center gap-1">
+                    <td className="px-2 py-1 text-slate-400 font-medium">
+                      <span className="inline-flex items-center gap-0.5">
                         {idx + 1}
-                        {isUp && <span className="text-emerald-400" title="Rank up">▲</span>}
-                        {isDown && <span className="text-red-400" title="Rank down">▼</span>}
+                        {isUp && <span className="text-emerald-400 text-[10px]" title="Rank up">▲</span>}
+                        {isDown && <span className="text-red-400 text-[10px]" title="Rank down">▼</span>}
                       </span>
                     </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex flex-wrap items-center gap-1.5">
-                        <span className="font-medium text-slate-200">
+                    <td className="px-2 py-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="font-medium text-slate-200 truncate block max-w-[140px] md:max-w-none md:overflow-visible md:whitespace-normal">
                           {row.entry_name} ({row.player_name})
                         </span>
+                        {gwWinnerEntries.has(row.entry) && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-orange-500/30 text-orange-200 border border-orange-500/50 shrink-0">
+                            Winner
+                          </span>
+                        )}
                         {row.chip && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium uppercase bg-fpl-accent/30 text-fpl-accent border border-fpl-accent/50">
+                          <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium uppercase bg-fpl-accent/30 text-fpl-accent border border-fpl-accent/50 shrink-0">
                             {formatChipLabel(row.chip)}
                           </span>
                         )}
                       </div>
-                      <div className="text-slate-500 text-xs mt-0.5">
-                        {captainByEntry.get(row.entry) ? `Captain: ${captainByEntry.get(row.entry)}` : '—'}
+                      <div className="text-slate-500 text-[10px] mt-0.5 truncate max-w-[160px] md:max-w-none md:overflow-visible md:whitespace-normal">
+                        {captainByEntry.get(row.entry) ? `C: ${captainByEntry.get(row.entry)}` : '—'}
                       </div>
                     </td>
-                    <td className="px-4 py-2.5 text-right font-medium text-white">{row.points}</td>
-                    <td className="px-4 py-2.5 text-right text-slate-300 text-sm">
+                    <td className="px-2 py-1 text-right font-medium text-white tabular-nums">{row.points}</td>
+                    <td className="px-2 py-1 text-right text-slate-300 tabular-nums">
                       {row.teamValue != null ? (row.teamValue / 10).toFixed(1) : '—'}
                     </td>
                   </tr>
