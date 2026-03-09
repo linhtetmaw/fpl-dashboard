@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { pageView } from './analytics';
 import AppLayout from './components/AppLayout';
@@ -8,8 +8,13 @@ import FixturesPage from './pages/FixturesPage';
 
 function App() {
   const location = useLocation();
+  const hasHandledInitialPageView = useRef(false);
 
   useEffect(() => {
+    if (!hasHandledInitialPageView.current) {
+      hasHandledInitialPageView.current = true;
+      return;
+    }
     pageView(location.pathname);
   }, [location.pathname]);
 
