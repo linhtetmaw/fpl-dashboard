@@ -470,7 +470,8 @@ function computeGwPointsFromPicks(picksJson, liveByElement, elementTypeById) {
   const getPts = (pick) => {
     const entry = liveByElement.get(pick.element);
     const raw = entry?.total_points ?? 0;
-    return (Number(raw) || 0) * (pick.multiplier ?? 1);
+    // Bench picks have multiplier 0 (unless Bench Boost); an auto-subbed bench player still scores ×1.
+    return (Number(raw) || 0) * (pick.multiplier || 1);
   };
 
   // FPL rule: bench player can only sub for a non-playing starter of the same position (GKP→GKP, DEF→DEF, etc.).
@@ -505,10 +506,34 @@ function computeGwPointsFromPicks(picksJson, liveByElement, elementTypeById) {
   return { chip, points: sum };
 }
 
-/** Max standings pages to fetch (safety cap; 50 teams per page). Fetches until has_next is false so all league members appear. */
-const STANDINGS_MAX_PAGES = 100;
+/** Max standings pages to fetch (50 teams per page). Keeps huge leagues (Overall, country leagues) from fanning out into thousands of FPL calls. */
+const STANDINGS_MAX_PAGES = 20;
+/** Only the top N entries get per-team picks/history calls (2 FPL requests each) for chip + live GW points; the rest keep FPL's event_total. */
+const STANDINGS_ENRICH_LIMIT = 100;
+/** bootstrap-static is ~2MB and changes rarely; cache element types instead of refetching per standings request. */
+const BOOTSTRAP_TTL_MS = 10 * 60 * 1000;
+let elementTypeCache = { map: new Map(), fetchedAt: 0 };
 
-/** League standings with chip badge and correct event_total (chip + transfer deduction). Fetches all pages so every team in the league is visible. */
+async function getElementTypeById(headers) {
+  if (elementTypeCache.map.size > 0 && Date.now() - elementTypeCache.fetchedAt < BOOTSTRAP_TTL_MS) {
+    return elementTypeCache.map;
+  }
+  try {
+    const res = await fetch(`${FPL_BASE}/bootstrap-static/`, { headers });
+    if (!res.ok) return elementTypeCache.map;
+    const bootstrap = await res.json();
+    const map = new Map();
+    for (const el of bootstrap?.elements ?? []) {
+      if (el.id != null && el.element_type != null) map.set(el.id, el.element_type);
+    }
+    if (map.size > 0) elementTypeCache = { map, fetchedAt: Date.now() };
+  } catch (err) {
+    console.error('Bootstrap for element types:', err.message);
+  }
+  return elementTypeCache.map;
+}
+
+/** League standings with chip badge and correct event_total (chip + transfer deduction). Fetches up to STANDINGS_MAX_PAGES pages; enriches the top STANDINGS_ENRICH_LIMIT entries. */
 app.get('/api/leagues-classic/:id/standings-with-chips', async (req, res) => {
   const id = req.params.id;
   const gw = Number(req.query.gw) || 1;
@@ -548,24 +573,18 @@ app.get('/api/leagues-classic/:id/standings-with-chips', async (req, res) => {
       return res.json(data);
     }
 
-    const [liveRes, bootstrapRes] = await Promise.all([
+    const [liveRes, elementTypeById] = await Promise.all([
       fetch(`${FPL_BASE}/event/${gw}/live/`, { headers }),
-      fetch(`${FPL_BASE}/bootstrap-static/`, { headers }),
+      getElementTypeById(headers),
     ]);
     const liveJson = liveRes.ok ? await liveRes.json() : null;
     const liveByElement = buildLiveByElement(liveJson);
     const hasLiveData = liveByElement.size > 0;
-    const bootstrap = bootstrapRes.ok ? await bootstrapRes.json() : null;
-    const elementTypeById = new Map();
-    if (bootstrap?.elements?.length) {
-      for (const el of bootstrap.elements) {
-        if (el.id != null && el.element_type != null) elementTypeById.set(el.id, el.element_type);
-      }
-    }
 
     const CONCURRENCY = 10;
-    for (let i = 0; i < results.length; i += CONCURRENCY) {
-      const batch = results.slice(i, i + CONCURRENCY);
+    const toEnrich = results.slice(0, STANDINGS_ENRICH_LIMIT);
+    for (let i = 0; i < toEnrich.length; i += CONCURRENCY) {
+      const batch = toEnrich.slice(i, i + CONCURRENCY);
       const picksAndHistory = await Promise.all(
         batch.map(async (r) => {
           try {

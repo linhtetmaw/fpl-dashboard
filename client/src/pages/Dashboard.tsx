@@ -28,8 +28,10 @@ export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const teamFromStorage = getStoredTeamId();
   const teamIdParam = searchParams.get('team');
-  const teamIdFromUrl = teamIdParam ? parseInt(teamIdParam, 10) : null;
-  const validTeamId = (teamFromStorage ?? teamIdFromUrl) ?? null;
+  const parsedUrlTeamId = teamIdParam ? parseInt(teamIdParam, 10) : NaN;
+  const teamIdFromUrl = Number.isInteger(parsedUrlTeamId) && parsedUrlTeamId > 0 ? parsedUrlTeamId : null;
+  // URL wins over storage so shared ?team= links open the linked team, not the visitor's saved one.
+  const validTeamId = (teamIdFromUrl ?? teamFromStorage) ?? null;
   const resolvedTeamId = validTeamId != null && !Number.isNaN(validTeamId) && validTeamId > 0 ? validTeamId : null;
   const defaultLeagueId = getDefaultLeagueId();
 

@@ -102,7 +102,7 @@ export async function searchByLeagueAndTeam(
 /** Fetch standings pages in parallel (batchSize at a time) up to maxPages. Stops when a page has has_next false. */
 export async function getLeagueStandingsAllPages(
   leagueId: number,
-  maxPages = 100,
+  maxPages = 20,
   batchSize = 10
 ): Promise<import('../types/fpl').StandingEntry[]> {
   const results: import('../types/fpl').StandingEntry[] = [];
