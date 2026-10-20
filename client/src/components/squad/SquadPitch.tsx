@@ -2,6 +2,8 @@ import { useState } from 'react';
 import type { FplElement } from '../../types/fpl';
 import { POSITION_SHORT, QUOTA, type SquadDraft } from '../../utils/squadRules';
 import { getPlayerImageUrl } from '../../utils/playerPhoto';
+import { getAvailability } from '../../utils/availability';
+import AvailabilityBadge from '../AvailabilityBadge';
 
 export type PitchMode = 'transfers' | 'lineup';
 
@@ -62,7 +64,7 @@ export default function SquadPitch({
     const isSelected = selectedId === id;
     const isTarget = swapTargets.has(id);
     const dimmed = swapping && !isSelected && !isTarget;
-    const flagged = el.status && el.status !== 'a';
+    const availability = getAvailability(el);
     const removable = mode === 'transfers';
     return (
       <div key={id} className="relative shrink-0">
@@ -72,7 +74,7 @@ export default function SquadPitch({
           className={`relative flex w-[60px] shrink-0 flex-col items-center overflow-hidden rounded-lg text-left transition sm:w-[76px] ${
             isSelected ? 'ring-2 ring-amber-300' : isTarget ? 'ring-2 ring-emerald-400/80' : ''
           } ${dimmed ? 'opacity-40' : 'hover:-translate-y-0.5'} focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand`}
-          title={flagged ? el.news || el.web_name : el.web_name}
+          title={availability ? `${el.web_name}: ${availability.label}` : el.web_name}
         >
           <div className="relative h-14 w-12 overflow-hidden rounded-t-md sm:h-[66px] sm:w-[56px]">
             <PlayerPhoto element={el} teamName={teamName(el.team)} />
@@ -86,16 +88,7 @@ export default function SquadPitch({
                 V
               </span>
             )}
-            {flagged && (
-              <span
-                className={`absolute left-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold text-fpl-dark shadow ${
-                  el.status === 'd' ? 'bg-amber-400' : 'bg-rose-500 text-white'
-                }`}
-                aria-label={el.news || 'Flagged'}
-              >
-                !
-              </span>
-            )}
+            {availability && <AvailabilityBadge availability={availability} className="absolute left-0.5 top-0.5" />}
           </div>
           <p className="w-full truncate bg-fpl-dark/95 px-1 py-0.5 text-center text-[10px] font-semibold text-white sm:text-[11px]">
             {el.web_name}

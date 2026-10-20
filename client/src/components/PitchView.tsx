@@ -3,6 +3,8 @@ import type { PlayerPoints } from '../types/fpl';
 import type { BootstrapStatic, FplElement } from '../types/fpl';
 import PlayerDetailCard from './PlayerDetailCard';
 import { getPlayerImageUrl } from '../utils/playerPhoto';
+import { getAvailability } from '../utils/availability';
+import AvailabilityBadge from './AvailabilityBadge';
 
 /** Group starting XI by element_type: 1=GKP, 2=DEF, 3=MID, 4=FWD. Order: FWD top → GKP bottom (vertical pitch). */
 function getFormationRows(players: PlayerPoints[]): PlayerPoints[][] {
@@ -55,6 +57,7 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
     const teamName = element ? teamById.get(element.team) : undefined;
     const imageUrl = getPlayerImageUrl(element, teamName);
     const isSub = p.is_substitute === true;
+    const availability = getAvailability(element);
     return (
       <button
         type="button"
@@ -101,6 +104,7 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
               SUB
             </span>
           )}
+          {availability && <AvailabilityBadge availability={availability} className={`absolute left-0.5 ${isSub ? 'top-4' : 'top-0.5'}`} />}
         </div>
         <p className="w-full truncate bg-fpl-dark/95 px-1 py-0.5 text-center text-[10px] sm:text-[11px] font-semibold text-white">
           {p.web_name}

@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { FplElement, FplTeam } from '../../types/fpl';
 import { MAX_PER_CLUB, POSITION_SHORT, QUOTA } from '../../utils/squadRules';
+import { getAvailability } from '../../utils/availability';
+import AvailabilityBadge from '../AvailabilityBadge';
 
 type SortKey = 'price' | 'points' | 'form' | 'selected';
 
@@ -170,7 +172,7 @@ export default function PlayerPicker({
       <ul className="min-h-0 flex-1 divide-y divide-fpl-border/60 overflow-y-auto">
         {list.slice(0, shown).map((e) => {
           const reason = blockReason(e);
-          const flagged = e.status && e.status !== 'a';
+          const availability = getAvailability(e);
           return (
             <li key={e.id}>
               <button
@@ -178,18 +180,13 @@ export default function PlayerPicker({
                 disabled={reason != null}
                 onClick={() => onPick(e)}
                 className="flex w-full items-center gap-3 px-3 py-2 text-left transition-colors enabled:hover:bg-white/[0.04] disabled:cursor-not-allowed disabled:opacity-45"
-                title={flagged ? e.news || undefined : undefined}
+                title={availability?.label}
               >
                 <span className="w-9 shrink-0 text-[10px] font-semibold text-slate-500">{POSITION_SHORT[e.element_type]}</span>
                 <span className="min-w-0 flex-1">
                   <span className="flex items-center gap-1.5">
                     <span className="truncate text-sm font-medium text-slate-100">{e.web_name}</span>
-                    {flagged && (
-                      <span
-                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${e.status === 'd' ? 'bg-amber-400' : 'bg-rose-500'}`}
-                        aria-label={e.news || 'Flagged'}
-                      />
-                    )}
+                    {availability && <AvailabilityBadge availability={availability} className="shrink-0" />}
                   </span>
                   <span className="block text-[11px] text-slate-500">
                     {teamShort.get(e.team)} · {e.total_points ?? 0} pts · form {e.form ?? '0'}
