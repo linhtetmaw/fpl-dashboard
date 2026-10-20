@@ -58,15 +58,16 @@ export default function TeamSummary({
     .map((w) => w[0]?.toUpperCase())
     .join('');
   return (
-    <section className="card p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <section className="card p-3 sm:p-6">
+      {/* Phones: name and GW picker share one row, stats in a single compact row. sm+ is unchanged. */}
+      <div className="flex flex-row items-center justify-between gap-2 sm:gap-4">
         <div className="flex items-center gap-3 min-w-0">
           <div className="hidden sm:flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-fpl-brand font-display text-lg font-bold text-fpl-purple">
             {initials || 'FH'}
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-white truncate">{teamName}</h2>
+              <h2 className="font-display text-base sm:text-2xl font-bold tracking-tight text-white truncate">{teamName}</h2>
               {showShLeagueBadge && (
                 <span
                   className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-semibold bg-fpl-brand/15 text-fpl-brand ring-1 ring-inset ring-fpl-brand/40"
@@ -84,12 +85,12 @@ export default function TeamSummary({
                 </span>
               )}
             </div>
-            <p className="text-slate-400 text-sm mt-0.5">
+            <p className="text-slate-400 text-xs sm:text-sm sm:mt-0.5 truncate">
               {managerName} <span className="text-slate-600">·</span> <span className="tabular-nums">ID {teamId}</span>
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           <label htmlFor="gw-select" className="sr-only">
             Gameweek
           </label>
@@ -97,7 +98,7 @@ export default function TeamSummary({
             id="gw-select"
             value={gameweek}
             onChange={(e) => onGameweekChange(Number(e.target.value))}
-            className="select-arrow-white input py-2 w-auto font-medium"
+            className="select-arrow-white input !py-1.5 sm:!py-2 !text-xs sm:!text-sm !pl-2.5 sm:!pl-3 w-auto font-medium"
           >
             {events.map((ev) => (
               <option key={ev.id} value={ev.id}>
@@ -109,41 +110,44 @@ export default function TeamSummary({
       </div>
 
       {isLoading && (
-        <div className="mt-5 sm:mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="mt-3 sm:mt-6 grid grid-cols-4 gap-1.5 sm:gap-3">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-[84px] rounded-xl bg-fpl-raised animate-pulse" />
+            <div key={i} className="h-[58px] sm:h-[84px] rounded-lg sm:rounded-xl bg-fpl-raised animate-pulse" />
           ))}
         </div>
       )}
 
       {!isLoading && summary && (
-        <div className="mt-5 sm:mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div className="rounded-xl p-3.5 sm:p-4 bg-gradient-to-br from-fpl-brand/20 to-fpl-brand/5 ring-1 ring-inset ring-fpl-brand/30">
-            <p className="eyebrow text-fpl-brand/90">GW points</p>
-            <p className="font-display text-3xl sm:text-4xl font-bold text-white mt-1 tabular-nums">
+        <div className="mt-3 sm:mt-6 grid grid-cols-4 gap-1.5 sm:gap-3">
+          <div className="min-w-0 rounded-lg sm:rounded-xl px-1.5 py-2 sm:p-4 bg-gradient-to-br from-fpl-brand/20 to-fpl-brand/5 ring-1 ring-inset ring-fpl-brand/30">
+            <p className="eyebrow !text-[9px] sm:!text-[11px] text-fpl-brand/90 truncate">
+              <span className="sm:hidden">GW pts</span>
+              <span className="hidden sm:inline">GW points</span>
+            </p>
+            <p className="font-display text-xl sm:text-4xl font-bold text-white mt-0.5 sm:mt-1 tabular-nums leading-tight">
               {gwNetTotal ?? summary.starting_points}
             </p>
           </div>
-          <StatTile label="Transfer hits">
+          <StatTile label="Transfer hits" shortLabel="Hits">
             <span className={transfersCost != null && transfersCost > 0 ? 'text-rose-400' : ''}>
               {transfersCost == null ? '—' : transfersCost > 0 ? `-${transfersCost}` : '0'}
             </span>
           </StatTile>
           <StatTile label="Chip">
             {summary.chip ? (
-              <span className="inline-flex items-center rounded-md bg-fpl-brand/15 px-2 py-0.5 text-lg sm:text-xl text-fpl-brand ring-1 ring-inset ring-fpl-brand/30">
+              <span className="inline-flex items-center rounded-md bg-fpl-brand/15 px-1.5 sm:px-2 py-0.5 text-sm sm:text-xl text-fpl-brand ring-1 ring-inset ring-fpl-brand/30">
                 {formatChip(summary.chip)}
               </span>
             ) : (
               <span className="text-slate-500">None</span>
             )}
           </StatTile>
-          <StatTile label="Team value">
+          <StatTile label="Team value" shortLabel="Value">
             {teamValue != null ? (
               <>
-                <span className="text-slate-500 text-lg mr-0.5">£</span>
+                <span className="text-slate-500 text-xs sm:text-lg sm:mr-0.5">£</span>
                 {(teamValue / 10).toFixed(1)}
-                <span className="text-slate-500 text-lg">m</span>
+                <span className="hidden sm:inline text-slate-500 text-lg">m</span>
               </>
             ) : (
               '—'
@@ -155,11 +159,14 @@ export default function TeamSummary({
   );
 }
 
-function StatTile({ label, children }: { label: string; children: ReactNode }) {
+function StatTile({ label, shortLabel, children }: { label: string; shortLabel?: string; children: ReactNode }) {
   return (
-    <div className="rounded-xl bg-fpl-raised/70 p-3.5 sm:p-4 ring-1 ring-inset ring-white/[0.03]">
-      <p className="eyebrow">{label}</p>
-      <p className="font-display text-2xl sm:text-[28px] font-bold text-white mt-1.5 tabular-nums leading-tight">{children}</p>
+    <div className="min-w-0 rounded-lg sm:rounded-xl bg-fpl-raised/70 px-1.5 py-2 sm:p-4 ring-1 ring-inset ring-white/[0.03]">
+      <p className="eyebrow !text-[9px] sm:!text-[11px] truncate">
+        <span className="sm:hidden">{shortLabel ?? label}</span>
+        <span className="hidden sm:inline">{label}</span>
+      </p>
+      <p className="font-display text-base sm:text-[28px] font-bold text-white mt-1 sm:mt-1.5 tabular-nums leading-tight truncate">{children}</p>
     </div>
   );
 }
