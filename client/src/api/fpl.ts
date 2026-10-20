@@ -69,6 +69,66 @@ export async function getLeagueStandingsWithChips(
   );
 }
 
+export async function getFplNews() {
+  return fetchApi<import('../types/fpl').FplNewsResponse>(`${API_BASE}/fpl-news`);
+}
+
+async function sendJson<T>(method: 'POST' | 'PUT' | 'DELETE', path: string, body?: unknown): Promise<T> {
+  const res = await fetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error((data as { error?: string }).error || `HTTP ${res.status}`);
+  return data as T;
+}
+
+export interface TelegramUser {
+  id: number;
+  name: string;
+  username: string | null;
+}
+
+/** Logged-in user (null if logged out) and the Telegram bot used for the login button (null if not set up). */
+export async function getMe() {
+  return fetchApi<{ user: TelegramUser | null; telegram_bot: string | null }>(`${API_BASE}/auth/me`);
+}
+
+/** Send the data from Telegram's login widget to the server, which verifies it and sets a session cookie. */
+export async function loginWithTelegram(data: Record<string, string | number>) {
+  return sendJson<{ user: TelegramUser }>('POST', `${API_BASE}/auth/telegram`, data);
+}
+
+export async function logout() {
+  return sendJson<{ ok: boolean }>('POST', `${API_BASE}/auth/logout`);
+}
+
+type SquadPayload = { name: string; picks: Omit<import('../types/fpl').SquadPick, 'purchase_price'>[] };
+
+export async function listSquads() {
+  return fetchApi<{ squads: import('../types/fpl').SavedSquad[]; max: number }>(`${API_BASE}/squads`);
+}
+
+export async function createSquad(payload: SquadPayload) {
+  return sendJson<import('../types/fpl').SavedSquad>('POST', `${API_BASE}/squads`, payload);
+}
+
+export async function updateSquad(id: string, payload: SquadPayload) {
+  return sendJson<import('../types/fpl').SavedSquad>('PUT', `${API_BASE}/squads/${encodeURIComponent(id)}`, payload);
+}
+
+export async function deleteSquad(id: string) {
+  return sendJson<{ ok: boolean }>('DELETE', `${API_BASE}/squads/${encodeURIComponent(id)}`);
+}
+
+export async function getYoutubePlaylistItems(playlistId: string) {
+  return fetchApi<{ playlistId: string; items: { videoId: string; title: string; published?: string; thumbnail?: string }[] }>(
+    `${API_BASE}/youtube-playlist`,
+    { playlistId }
+  );
+}
+
 /** Search by team name (and optional manager) via server-side index. */
 export async function searchTeams(teamName: string, managerName?: string): Promise<import('../types/fpl').StandingEntry[]> {
   const params: Record<string, string> = { team: teamName.trim() };
@@ -97,31 +157,4 @@ export async function searchByLeagueAndTeam(
     count: number;
   };
   return data.results ?? [];
-}
-
-/** Fetch standings pages in parallel (batchSize at a time) up to maxPages. Stops when a page has has_next false. */
-export async function getLeagueStandingsAllPages(
-  leagueId: number,
-  maxPages = 100,
-  batchSize = 10
-): Promise<import('../types/fpl').StandingEntry[]> {
-  const results: import('../types/fpl').StandingEntry[] = [];
-  let page = 1;
-  while (page <= maxPages) {
-    const batch = Array.from({ length: batchSize }, (_, i) => page + i).filter((p) => p <= maxPages);
-    if (batch.length === 0) break;
-    const pages = await Promise.all(
-      batch.map((p) => getLeagueStandings(leagueId, p))
-    );
-    let hasNext = false;
-    for (let i = 0; i < pages.length; i++) {
-      const data = pages[i];
-      const entries = data.standings?.results ?? [];
-      results.push(...entries);
-      if (data.standings?.has_next) hasNext = true;
-    }
-    if (!hasNext) break;
-    page += batch.length;
-  }
-  return results;
 }

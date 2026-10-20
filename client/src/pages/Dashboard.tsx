@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router-dom';
-import { useMemo, useEffect, useRef, useState } from 'react';
-import { useBootstrapStatic, useEntry, useTeamPicks, useEventLive, useEntryHistory, getCurrentEvent, computeTeamPointsSummary } from '../hooks/useFplApi';
+import { useMemo, useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useBootstrapStatic, useEntry, useTeamPicks, useEventLive, useEntryHistory, useFixtures, getCurrentEvent, computeTeamPointsSummary } from '../hooks/useFplApi';
 import TeamSearchPage from './TeamSearchPage';
 import TeamSummary from '../components/TeamSummary';
 import PitchView from '../components/PitchView';
@@ -28,16 +28,18 @@ export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const teamFromStorage = getStoredTeamId();
   const teamIdParam = searchParams.get('team');
-  const teamIdFromUrl = teamIdParam ? parseInt(teamIdParam, 10) : null;
-  const validTeamId = (teamFromStorage ?? teamIdFromUrl) ?? null;
-  const resolvedTeamId = validTeamId != null && !Number.isNaN(validTeamId) && validTeamId > 0 ? validTeamId : null;
+  const parsedUrlTeamId = teamIdParam ? parseInt(teamIdParam, 10) : NaN;
+  const teamIdFromUrl = Number.isInteger(parsedUrlTeamId) && parsedUrlTeamId > 0 ? parsedUrlTeamId : null;
+  // A ?team= link (e.g. shared by someone) takes priority over the team remembered in this browser.
+  const resolvedTeamId = teamIdFromUrl ?? teamFromStorage;
   const defaultLeagueId = getDefaultLeagueId();
 
   useEffect(() => {
-    if (resolvedTeamId != null && teamIdParam != null && parseInt(teamIdParam, 10) === resolvedTeamId) {
-      localStorage.setItem(TEAM_ID_KEY, String(resolvedTeamId));
+    // Remember a team from the URL only if none is saved yet, so opening a shared link doesn't replace the visitor's own team.
+    if (teamIdFromUrl != null && teamFromStorage == null) {
+      localStorage.setItem(TEAM_ID_KEY, String(teamIdFromUrl));
     }
-  }, [resolvedTeamId, teamIdParam]);
+  }, [teamIdFromUrl, teamFromStorage]);
 
   const { data: bootstrap, error: bootstrapError } = useBootstrapStatic();
   const { data: entry, isLoading: entryLoading, error: entryError } = useEntry(resolvedTeamId);
@@ -49,18 +51,20 @@ export default function Dashboard() {
   const { data: picks, isLoading: picksLoading } = useTeamPicks(resolvedTeamId, effectiveGw);
   const { data: live, isLoading: liveLoading } = useEventLive(effectiveGw);
   const { data: entryHistory } = useEntryHistory(resolvedTeamId);
+  const { data: fixtures, isLoading: fixturesLoading } = useFixtures(effectiveGw);
 
   const teamSummary = useMemo(() => {
-    if (!resolvedTeamId || !bootstrap || !picks || !live) return null;
+    if (!resolvedTeamId || !bootstrap || !picks || !live || fixturesLoading) return null;
     return computeTeamPointsSummary(
       resolvedTeamId,
       effectiveGw,
       bootstrap,
       picks,
       live,
+      fixtures ?? null,
       entry?.name ?? null
     );
-  }, [resolvedTeamId, effectiveGw, bootstrap, picks, live, entry?.name]);
+  }, [resolvedTeamId, effectiveGw, bootstrap, picks, live, fixtures, fixturesLoading, entry?.name]);
 
   const teamValue = useMemo(() => {
     const cur = entryHistory?.current?.find((c) => c.event === effectiveGw);
@@ -126,20 +130,20 @@ export default function Dashboard() {
     <>
       {entryNotFound && (
         <div className="max-w-6xl mx-auto px-4 pt-4">
-          <div className="px-4 py-2 rounded-lg bg-rose-500/20 text-rose-300 text-sm">
+          <div className="px-4 py-3 rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-200 text-sm">
             No team found for ID {resolvedTeamId}. Check the ID and try again.
           </div>
         </div>
       )}
 
-      <main className="max-w-6xl mx-auto px-4 py-8">
+      <main className="max-w-6xl mx-auto px-4 py-6">
         {dataUpdatingAfterDeadline && (
-          <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/20 text-amber-200 text-sm">
+          <div className="mb-6 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 text-sm">
             Deadline passed and game is currently updating. Please wait.
           </div>
         )}
         {bootstrapError && !dataUpdatingAfterDeadline && (
-          <div className="mb-6 px-4 py-3 rounded-lg bg-amber-500/20 text-amber-200 text-sm">
+          <div className="mb-6 px-4 py-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-200 text-sm">
             Failed to load game data. Please refresh the page.
           </div>
         )}
@@ -148,26 +152,26 @@ export default function Dashboard() {
           <>
             {teamSummary ? (
               <>
-                <section className="flex flex-col lg:flex-row gap-6 items-stretch">
+                <TeamSummary
+                  teamName={entry.name}
+                  managerName={`${entry.player_first_name} ${entry.player_last_name}`}
+                  teamId={entry.id}
+                  gameweek={effectiveGw}
+                  events={events}
+                  onGameweekChange={handleGameweekChange}
+                  summary={teamSummary}
+                  gwNetTotal={gwNetTotal}
+                  transfersCost={transfersCost}
+                  teamValue={teamValue}
+                  isLoading={picksLoading || liveLoading}
+                  showShLeagueBadge={entry.leagues?.classic?.some((l) => l.id === 699005)}
+                />
+                <section className="mt-6 flex flex-col lg:flex-row gap-6 items-stretch">
                   <div className="min-w-0 lg:flex-1 flex flex-col">
-                    <TeamSummary
-                      teamName={entry.name}
-                      managerName={`${entry.player_first_name} ${entry.player_last_name}`}
-                      teamId={entry.id}
-                      gameweek={effectiveGw}
-                      events={events}
-                      onGameweekChange={handleGameweekChange}
-                      summary={teamSummary}
-                      gwNetTotal={gwNetTotal}
-                      transfersCost={transfersCost}
-                      teamValue={teamValue}
-                      isLoading={picksLoading || liveLoading}
-                      showShLeagueBadge={entry.leagues?.classic?.some((l) => l.id === 699005)}
-                    />
-                    <div ref={pitchWrapRef} className="mt-8">
-                      <div className="flex flex-wrap items-baseline gap-2 mb-3">
-                        <h2 className="text-lg font-semibold text-white">Pitch view</h2>
-                        <span className="text-slate-500 text-xs">Click Player Image to view profile</span>
+                    <div ref={pitchWrapRef}>
+                      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-3">
+                        <h2 className="section-title">Pitch view</h2>
+                        <span className="text-slate-500 text-xs">Tap a player for their profile</span>
                       </div>
                       <PitchView
                         players={teamSummary.players}
@@ -179,14 +183,15 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div
-                    className="lg:w-[480px] lg:flex-shrink-0 lg:min-h-0 flex flex-col min-h-0"
+                    // Match the pitch column's height on desktop; on phones use a fixed, scrollable panel.
+                    className="lg:w-[480px] lg:flex-shrink-0 flex flex-col min-h-0 h-[600px] lg:h-[var(--league-panel-h)]"
                     style={
                       pitchHeight != null
-                        ? { height: pitchHeight + 230, minHeight: pitchHeight }
+                        ? ({ '--league-panel-h': `${pitchHeight}px` } as CSSProperties)
                         : undefined
                     }
                   >
-                    <h2 className="text-lg font-semibold text-white mb-3 shrink-0">Leagues</h2>
+                    <h2 className="section-title mb-3 shrink-0">Leagues</h2>
                     <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
                     <LeagueSelector
                       leagues={entry.leagues?.classic ?? []}
@@ -200,8 +205,8 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </section>
-                <section className="mt-8">
-                  <h2 className="text-lg font-semibold text-white mb-3">Player breakdown</h2>
+                <section className="mt-6">
+                  <h2 className="section-title mb-3">Player breakdown</h2>
                   <PlayersTable players={teamSummary.players} />
                 </section>
               </>

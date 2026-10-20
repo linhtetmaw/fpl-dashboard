@@ -34,21 +34,21 @@ export default function LeagueSelector({ leagues, teamId, bootstrap, onTeamClick
 
   if (!leagues.length) {
     return (
-      <div className="rounded-xl border border-fpl-border bg-fpl-card p-6 text-slate-400 text-sm">
+      <div className="card p-6 text-slate-400 text-sm">
         No classic leagues found.
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 h-full flex flex-col min-h-0">
+    <div className="space-y-3 h-full flex flex-col min-h-0">
       <div>
-        <label htmlFor="league-select" className="block text-slate-400 text-sm mb-1.5">League</label>
+        <label htmlFor="league-select" className="sr-only">League</label>
         <select
           id="league-select"
           value={selectedId ?? ''}
           onChange={(e) => setSelectedId(Number(e.target.value) || null)}
-          className="select-arrow-white w-full px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent text-sm"
+          className="select-arrow-white input font-medium"
         >
           {leagues.map((league) => (
             <option key={league.id} value={league.id}>
@@ -66,6 +66,8 @@ export default function LeagueSelector({ leagues, teamId, bootstrap, onTeamClick
             onTeamClick={onTeamClick}
             gameweek={gameweek}
             currentUserChip={currentUserChip}
+            userRank={leagues.find((l) => l.id === selectedId)?.entry_rank ?? null}
+            rankCount={leagues.find((l) => l.id === selectedId)?.rank_count ?? null}
           />
         </div>
       )}

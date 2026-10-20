@@ -1,6 +1,7 @@
 import { useState, FormEvent } from 'react';
 import { searchTeams, searchByLeagueAndTeam } from '../api/fpl';
 import type { StandingEntry } from '../types/fpl';
+import { SearchIcon } from './icons';
 
 /** Search result: from index (no league info) or from search-by-league (with league_id/league_name). */
 type SearchResult = StandingEntry & { league_id?: number; league_name?: string };
@@ -79,7 +80,7 @@ export default function SearchBar({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap gap-2">
+      <div className="segmented w-full sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none" role="tablist">
         <button
           type="button"
           onClick={() => {
@@ -87,13 +88,11 @@ export default function SearchBar({
             setError(null);
             setSearchResults(null);
           }}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-            mode === 'league'
-              ? 'bg-fpl-accent text-white'
-              : 'bg-fpl-card border border-fpl-border text-slate-400 hover:text-slate-200'
-          }`}
+          data-active={mode === 'league'}
+          role="tab"
+          aria-selected={mode === 'league'}
         >
-          Team/ Manager Name
+          Team / manager name
         </button>
         <button
           type="button"
@@ -102,11 +101,9 @@ export default function SearchBar({
             setError(null);
             setSearchResults(null);
           }}
-          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-            mode === 'id'
-              ? 'bg-fpl-accent text-white'
-              : 'bg-fpl-card border border-fpl-border text-slate-400 hover:text-slate-200'
-          }`}
+          data-active={mode === 'id'}
+          role="tab"
+          aria-selected={mode === 'id'}
         >
           Team ID
         </button>
@@ -115,13 +112,11 @@ export default function SearchBar({
       {mode === 'league' ? (
         <>
           <form onSubmit={handleSubmitLeague} className="space-y-3">
-            <p className="text-slate-500 text-xs">
-              Search by <strong>Team name</strong>
-            </p>
             <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
               <div className="flex-1 min-w-[160px]">
-                <label className="block text-slate-400 text-xs mb-1">Team name</label>
+                <label htmlFor="search-team" className="eyebrow block mb-1.5">Team name</label>
                 <input
+                  id="search-team"
                   type="text"
                   placeholder="e.g. My FPL Team"
                   value={teamName}
@@ -129,13 +124,14 @@ export default function SearchBar({
                     setTeamName(e.target.value);
                     setError(null);
                   }}
-                  className="w-full px-3 py-2 rounded-lg bg-fpl-card border border-fpl-border text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
+                  className="input"
                   disabled={searching}
                 />
               </div>
               <div className="flex-1 min-w-[160px]">
-                <label className="block text-slate-400 text-xs mb-1">Manager name (optional)</label>
+                <label htmlFor="search-manager" className="eyebrow block mb-1.5">Manager name <span className="normal-case tracking-normal font-normal">(optional)</span></label>
                 <input
+                  id="search-manager"
                   type="text"
                   placeholder="e.g. John Smith"
                   value={managerName}
@@ -143,7 +139,7 @@ export default function SearchBar({
                     setManagerName(e.target.value);
                     setError(null);
                   }}
-                  className="w-full px-3 py-2 rounded-lg bg-fpl-card border border-fpl-border text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
+                  className="input"
                   disabled={searching}
                 />
               </div>
@@ -152,24 +148,25 @@ export default function SearchBar({
             <button
               type="submit"
               disabled={searching || !teamName.trim()}
-              className="px-6 py-2.5 rounded-lg bg-fpl-accent hover:bg-fpl-accent-hover text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary w-full sm:w-auto px-6 py-2.5"
             >
-              {searching ? 'Searching…' : 'Search'}
+              <SearchIcon className="h-4 w-4" />
+              {searching ? 'Searching…' : 'Find my team'}
             </button>
           </form>
 
           {searchResults !== null && searchResults.length > 0 && (
-            <div className="rounded-lg border border-fpl-border bg-fpl-card/80 overflow-hidden">
-              <p className="px-3 py-2 text-slate-400 text-xs border-b border-fpl-border">
+            <div className="rounded-xl border border-fpl-border bg-fpl-raised/50 overflow-hidden">
+              <p className="eyebrow px-3 py-2.5 border-b border-fpl-border">
                 {searchResults.length} team{searchResults.length !== 1 ? 's' : ''} found — click to view
               </p>
-              <ul className="max-h-48 overflow-y-auto">
+              <ul className="max-h-64 overflow-y-auto">
                 {searchResults.map((r) => (
                   <li key={r.entry}>
                     <button
                       type="button"
                       onClick={() => handleSelectResult(r.entry)}
-                      className="w-full px-3 py-2 text-left hover:bg-fpl-accent/20 border-b border-fpl-border/50 last:border-b-0 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-0.5"
+                      className="w-full px-3 py-2.5 text-left hover:bg-white/[0.04] border-b border-fpl-border/50 last:border-b-0 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-0.5 transition-colors"
                     >
                       <span className="text-slate-200 font-medium truncate">{r.entry_name}</span>
                       <span className="text-slate-500 text-xs shrink-0">
@@ -185,10 +182,10 @@ export default function SearchBar({
         </>
       ) : (
         <div className="space-y-3">
-          <div className="rounded-lg border border-fpl-border bg-fpl-card/50 p-3 text-slate-400 text-sm">
+          <div className="rounded-xl border border-fpl-border bg-fpl-raised/40 p-4 text-slate-400 text-sm">
             <p className="font-medium text-slate-300 mb-1">How to find your Team ID</p>
             <ol className="list-decimal list-inside space-y-1 text-xs">
-              <li>Go to <a href="https://fantasy.premierleague.com" target="_blank" rel="noopener noreferrer" className="text-fpl-accent hover:underline">fantasy.premierleague.com</a> and log in.</li>
+              <li>Go to <a href="https://fantasy.premierleague.com" target="_blank" rel="noopener noreferrer" className="text-fpl-brand hover:underline">fantasy.premierleague.com</a> and log in.</li>
               <li>Choose "Points".</li>
               <li>Look at the browser address bar. The URL will look like <code className="bg-fpl-dark px-1 rounded">…/entry/<strong>123456</strong>/event/…</code> — the number after <code className="bg-fpl-dark px-1 rounded">entry/</code> is your Team ID.</li>
             </ol>
@@ -224,7 +221,7 @@ export default function SearchBar({
                   setIdValue(e.target.value);
                   setError(null);
                 }}
-                className="px-4 py-2.5 rounded-lg bg-fpl-card border border-fpl-border text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-fpl-accent focus:border-transparent"
+                className="input"
                 disabled={isLoading}
               />
               {error && <p className="text-sm text-rose-400">{error}</p>}
@@ -232,7 +229,7 @@ export default function SearchBar({
             <button
               type="submit"
               disabled={isLoading}
-              className="px-6 py-2.5 rounded-lg bg-fpl-accent hover:bg-fpl-accent-hover text-white font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary px-6 py-2.5"
             >
               {isLoading ? 'Loading…' : 'View team'}
             </button>

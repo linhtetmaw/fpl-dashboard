@@ -49,11 +49,18 @@ export interface FplElement {
   selected_rank?: number;
   /** Total FPL points this season. */
   total_points?: number;
+  /** Price change this gameweek in tenths (e.g. 1 = +£0.1m, -1 = -£0.1m). */
+  cost_change_event?: number;
+  /** Price change since the start of the season in tenths. */
+  cost_change_start?: number;
+  /** Minutes played this season. */
+  minutes?: number;
 }
 
 export interface FplTeam {
   id: number;
   name: string;
+  short_name?: string;
 }
 
 /** One gameweek of history from element-summary (player's points in that GW). */
@@ -92,6 +99,8 @@ export interface FplFixture {
   team_h_score: number | null;
   team_a_score: number | null;
   finished: boolean;
+  /** True once the final whistle has gone (before bonus is confirmed and `finished` flips). */
+  finished_provisional?: boolean;
   team_h_difficulty?: number;
   team_a_difficulty?: number;
 }
@@ -181,6 +190,12 @@ export interface StandingEntry {
   movement: string;
   /** Chip used this GW (from standings-with-chips endpoint). */
   chip?: string | null;
+  /** Captain's element id this GW (standings-with-chips). */
+  captain?: number | null;
+  /** Team value × 10 at this GW (standings-with-chips). */
+  value?: number | null;
+  /** [gameweek, points] for every played GW (standings-with-chips); used for the Monthly sort. */
+  history?: [number, number][];
 }
 
 /** Result from search-by-league (StandingEntry + league info). */
@@ -227,4 +242,54 @@ export interface TeamPointsSummary {
   replacedStarters: PlayerPoints[];
 }
 
+/** A player with an FPL availability update (from /api/fpl-news). */
+export interface FplNewsPlayer {
+  id: number;
+  web_name: string;
+  first_name?: string;
+  second_name?: string;
+  code?: number;
+  team: number;
+  element_type: number;
+  /** a=available, d=doubtful, i=injured, s=suspended, u=unavailable, n=not eligible. */
+  status: string;
+  chance_of_playing_next_round: number | null;
+  news_en: string;
+  news_added: string | null;
+  selected_by_percent?: string;
+}
+
+export interface FplNewsResponse {
+  updated_at: string | null;
+  players: FplNewsPlayer[];
+}
+
 export type LeagueSortBy = 'event_total' | 'total' | 'monthly' | 'team_value';
+
+/** One saved Squad Planner pick (same shape as an FPL pick, plus the price the player was bought at). */
+export interface SquadPick {
+  element: number;
+  /** 1–11 starting XI, 12 bench goalkeeper, 13–15 bench order. */
+  position: number;
+  is_captain: boolean;
+  is_vice_captain: boolean;
+  /** Price in tenths when the player joined this squad (kept until they're removed). */
+  purchase_price: number;
+}
+
+/** A squad as saved before one deadline; it scores from `gw` until a later version replaces it. */
+export interface SquadVersion {
+  gw: number;
+  saved_at: string;
+  picks: SquadPick[];
+}
+
+export interface SavedSquad {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  /** First gameweek this squad scores in. */
+  start_gw: number | null;
+  versions: SquadVersion[];
+}

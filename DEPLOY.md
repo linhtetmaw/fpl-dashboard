@@ -73,10 +73,37 @@ In Railway use:
 
 ---
 
+## Go-live checklist (custom domain)
+
+1. **Railway → Settings → Networking → Custom Domain:** add your domain (e.g. `fplhouse.com`, and `www.fplhouse.com` if you want it) and create the DNS records Railway shows you at your domain registrar. Railway issues the HTTPS certificate automatically.
+2. **Variables** (Railway → Variables):
+   - `CANONICAL_HOST=fplhouse.com` – sends the `*.up.railway.app` address and `www.` to your main domain (needed for Telegram login, and better for Google).
+   - `SESSION_SECRET` – long random string (`openssl rand -hex 32`).
+   - `TELEGRAM_BOT_TOKEN`, `TELEGRAM_BOT_USERNAME` – see "Telegram login setup".
+   - `DATA_DIR=/data` with a **Volume** mounted at `/data` – keeps saved squads across deploys.
+   - `ADMIN_TOKEN` (optional) – only needed to call `POST /api/search/reload` (send it as the `X-Admin-Token` header).
+3. **@BotFather → /setdomain:** set it to the same domain as `CANONICAL_HOST`.
+4. **Google Analytics:** add the new domain to your GA4 web stream if it isn't there.
+5. **After deploy:** open `https://<your-domain>/api/health` (should show `"ok": true`), log in with Telegram on Squad Planner, save a squad, then redeploy once and check the squad is still there.
+
 ## Step 5: Environment variables (optional)
 
 - **PORT:** Railway sets `PORT` automatically; the server already uses `process.env.PORT || 3001`.
 - No API keys are required for the FPL proxy or TheSportsDB (free key is used in code).
+- **DATA_DIR** (needed for Squad Planner): saved squads are written to `squads.json` in this folder (default `server/data/`). Railway's filesystem is wiped on every redeploy, so add a Railway **Volume** (e.g. mounted at `/data`) and set `DATA_DIR=/data` — otherwise everyone's saved squads are lost on each deploy.
+- **TELEGRAM_BOT_TOKEN** and **TELEGRAM_BOT_USERNAME** (needed to save Squad Planner squads): users log in with Telegram, up to 3 squads each. See "Telegram login setup" below. Never commit the token.
+- **SESSION_SECRET**: a long random string (e.g. from `openssl rand -hex 32`) used to sign login cookies. If it's missing, everyone is logged out whenever the server restarts.
+
+### Monitoring the FPL cache
+
+All FPL API calls go through an in-memory cache (`server/fpl-api.js`), so traffic to FPL stays roughly flat as visitors grow. Open `https://<your-domain>/api/health` to see it working: `hits` should be far above `upstream` (requests actually sent to FPL), and a rising `stale` or `errors` count means FPL is failing or rate-limiting us. Point a free uptime monitor (e.g. UptimeRobot) at this URL.
+
+### Telegram login setup (Squad Planner)
+
+1. In Telegram, open **@BotFather** → `/newbot` → pick a name and a username (e.g. `FPLHouseLoginBot`). Copy the token it gives you.
+2. Still in @BotFather: `/setdomain` → choose the bot → send your site's domain (e.g. `fplhouse.com`, no `https://`). The login button only works on this domain, so it won't appear on `localhost`.
+3. In Railway, set `TELEGRAM_BOT_TOKEN` (the token), `TELEGRAM_BOT_USERNAME` (the username without `@`) and `SESSION_SECRET`, then redeploy.
+4. Open Squad Planner: the "Log in with Telegram" button appears in the account bar. Users can still build a squad without logging in; logging in is only needed to save.
 
 You can add env vars in Railway: **Project → Variables** or **Service → Variables**.
 

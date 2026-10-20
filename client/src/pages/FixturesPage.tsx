@@ -3,17 +3,27 @@ import { useSearchParams } from 'react-router-dom';
 import { useBootstrapStatic, useFixtures, useAllFixtures, getCurrentEvent } from '../hooks/useFplApi';
 import type { FplFixture, FplTeam } from '../types/fpl';
 
-const FDR_COLOR: Record<number, string> = {
-  1: 'bg-emerald-500/30 text-emerald-200 border-emerald-500/50',
-  2: 'bg-lime-500/20 text-lime-200 border-lime-500/40',
-  3: 'bg-amber-500/20 text-amber-200 border-amber-500/40',
-  4: 'bg-orange-500/20 text-orange-200 border-orange-500/40',
-  5: 'bg-rose-500/30 text-rose-200 border-rose-500/50',
+/** Solid FDR fills, tuned for the dark surface (text colour chosen per fill for contrast). */
+const FDR_FILL: Record<number, string> = {
+  1: 'bg-emerald-600 text-white',
+  2: 'bg-emerald-400 text-emerald-950',
+  3: 'bg-slate-600 text-slate-100',
+  4: 'bg-rose-500 text-white',
+  5: 'bg-rose-800 text-rose-50',
 };
 
-function getTeamName(teams: FplTeam[], teamId: number): string {
-  const team = teams.find((t) => t.id === teamId);
-  return team?.name ?? `Team ${teamId}`;
+const FDR_LABEL: Record<number, string> = {
+  1: 'Very easy',
+  2: 'Easy',
+  3: 'Medium',
+  4: 'Hard',
+  5: 'Very hard',
+};
+
+function avgTextColor(avg: number): string {
+  if (avg <= 2.4) return 'text-emerald-400';
+  if (avg <= 3.1) return 'text-slate-200';
+  return 'text-rose-400';
 }
 
 const TIMEZONES = [
@@ -28,15 +38,24 @@ const TIMEZONES = [
   { value: 'Asia/Singapore', label: 'SGT Time' },
 ];
 
-function formatKickoff(iso: string, timeZone: string): string {
+const TIMEZONE_STORAGE_KEY = 'fpl_fixtures_timezone';
+const MAX_GW = 38;
+const FDR_RANGES = [3, 5, 8, MAX_GW] as const;
+
+function getStoredTimezone(): string {
   try {
-    const d = new Date(iso);
-    return d.toLocaleDateString(undefined, {
-      weekday: 'short',
-      month: 'short',
+    return localStorage.getItem(TIMEZONE_STORAGE_KEY) ?? 'Asia/Yangon';
+  } catch {
+    return 'Asia/Yangon';
+  }
+}
+
+function formatDay(iso: string, timeZone: string): string {
+  try {
+    return new Date(iso).toLocaleDateString(undefined, {
+      weekday: 'long',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      month: 'long',
       timeZone,
     });
   } catch {
@@ -44,17 +63,102 @@ function formatKickoff(iso: string, timeZone: string): string {
   }
 }
 
-const TIMEZONE_STORAGE_KEY = 'fpl_fixtures_timezone';
-const MAX_GW = 38;
+function formatTime(iso: string, timeZone: string): string {
+  try {
+    return new Date(iso).toLocaleTimeString(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      timeZone,
+    });
+  } catch {
+    return '';
+  }
+}
 
-function getStoredTimezone(): string {
-  if (typeof window === 'undefined') return 'Asia/Yangon';
-  return localStorage.getItem(TIMEZONE_STORAGE_KEY) ?? 'Asia/Yangon';
+function TeamBadge({ teamId, className }: { teamId: number; className: string }) {
+  return (
+    <img
+      src={`/api/badge/${teamId}?v=2`}
+      alt=""
+      className={`object-contain shrink-0 ${className}`}
+      referrerPolicy="no-referrer"
+      onError={(e) => {
+        (e.target as HTMLImageElement).style.visibility = 'hidden';
+      }}
+    />
+  );
+}
+
+function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4" aria-hidden>
+      <path d={direction === 'left' ? 'M15 18l-6-6 6-6' : 'M9 18l6-6-6-6'} />
+    </svg>
+  );
+}
+
+function FixtureRow({ fixture: f, teams, timezone }: { fixture: FplFixture; teams: Map<number, FplTeam>; timezone: string }) {
+  const home = teams.get(f.team_h);
+  const away = teams.get(f.team_a);
+  const done = f.finished || f.finished_provisional;
+  const live = !done && f.team_h_score != null && f.team_a_score != null;
+  const hasScore = done || live;
+
+  return (
+    <li className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 px-3 sm:px-4 py-3 transition-colors hover:bg-fpl-raised/40">
+      <div className="flex items-center justify-end gap-2 sm:gap-3 min-w-0">
+        <span className="truncate text-right text-sm font-medium text-white">
+          <span className="sm:hidden">{home?.short_name ?? home?.name}</span>
+          <span className="hidden sm:inline">{home?.name ?? `Team ${f.team_h}`}</span>
+        </span>
+        <TeamBadge teamId={f.team_h} className="h-7 w-7 sm:h-8 sm:w-8" />
+      </div>
+
+      <div className="flex flex-col items-center w-[4.5rem] sm:w-20">
+        {hasScore ? (
+          <span
+            className={`inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1 font-display text-sm font-bold tabular-nums ${
+              live ? 'bg-fpl-brand/15 text-fpl-brand ring-1 ring-fpl-brand/40' : 'bg-fpl-raised text-white ring-1 ring-fpl-border'
+            }`}
+          >
+            {f.team_h_score}
+            <span className="text-slate-500 font-normal">–</span>
+            {f.team_a_score}
+          </span>
+        ) : (
+          <span className="inline-flex items-center justify-center rounded-md border border-fpl-border px-2.5 py-1 text-sm font-medium tabular-nums text-slate-200">
+            {formatTime(f.kickoff_time, timezone)}
+          </span>
+        )}
+        {hasScore && (
+          <span className={`mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${live ? 'text-fpl-brand' : 'text-slate-500'}`}>
+            {live ? 'Live' : 'FT'}
+          </span>
+        )}
+      </div>
+
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        <TeamBadge teamId={f.team_a} className="h-7 w-7 sm:h-8 sm:w-8" />
+        <span className="truncate text-sm font-medium text-white">
+          <span className="sm:hidden">{away?.short_name ?? away?.name}</span>
+          <span className="hidden sm:inline">{away?.name ?? `Team ${f.team_a}`}</span>
+        </span>
+      </div>
+    </li>
+  );
+}
+
+interface FdrEntry {
+  difficulty: number;
+  opponent: number;
+  home: boolean;
 }
 
 export default function FixturesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [timezone, setTimezone] = useState(() => getStoredTimezone());
+  const [fdrRange, setFdrRange] = useState<number>(5);
+  const [fdrSort, setFdrSort] = useState<'easiest' | 'name'>('easiest');
   const { data: bootstrap, error: bootstrapError } = useBootstrapStatic();
   const { data: allFixtures } = useAllFixtures();
   const events = bootstrap?.events ?? [];
@@ -62,31 +166,63 @@ export default function FixturesPage() {
   const defaultGw = getCurrentEvent(bootstrap ?? undefined);
   const gwParam = searchParams.get('gw');
   const gameweek = gwParam ? parseInt(gwParam, 10) : (defaultGw ?? 1);
-  const effectiveGw = Number.isNaN(gameweek) || gameweek < 1 ? defaultGw ?? 1 : gameweek;
-
-  const [fdrUntilGw, setFdrUntilGw] = useState(MAX_GW);
+  const effectiveGw = Number.isNaN(gameweek) || gameweek < 1 ? defaultGw ?? 1 : Math.min(gameweek, MAX_GW);
 
   const { data: fixtures, isLoading, error } = useFixtures(effectiveGw);
 
-  const { fdrGwIds, fdrMap, eventNames } = useMemo(() => {
-    const endGw = Math.min(Math.max(fdrUntilGw, effectiveGw), MAX_GW);
-    const gwIds = Array.from(
-      { length: endGw - effectiveGw + 1 },
-      (_, i) => effectiveGw + i
+  const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
+  const shortName = (id: number) => {
+    const t = teamById.get(id);
+    return t?.short_name ?? t?.name.slice(0, 3).toUpperCase() ?? `T${id}`;
+  };
+
+  /** Fixtures for the selected GW, grouped by local kickoff day. */
+  const fixtureDays = useMemo(() => {
+    const sorted = [...(fixtures ?? [])].sort(
+      (a, b) => new Date(a.kickoff_time).getTime() - new Date(b.kickoff_time).getTime()
     );
-    const map = new Map<string, { difficulty: number; opponent: number }>();
-    (allFixtures ?? []).forEach((f: FplFixture) => {
-      if (f.team_h_difficulty != null)
-        map.set(`${f.team_h}-${f.event}`, { difficulty: f.team_h_difficulty, opponent: f.team_a });
-      if (f.team_a_difficulty != null)
-        map.set(`${f.team_a}-${f.event}`, { difficulty: f.team_a_difficulty, opponent: f.team_h });
+    const groups: { day: string; items: FplFixture[] }[] = [];
+    sorted.forEach((f) => {
+      const day = f.kickoff_time ? formatDay(f.kickoff_time, timezone) : 'Date to be confirmed';
+      const last = groups[groups.length - 1];
+      if (last && last.day === day) last.items.push(f);
+      else groups.push({ day, items: [f] });
     });
-    const names: Record<number, string> = {};
-    events.forEach((ev) => {
-      names[ev.id] = ev.name;
+    return groups;
+  }, [fixtures, timezone]);
+
+  const { fdrGwIds, fdrRows } = useMemo(() => {
+    const endGw = Math.min(effectiveGw + fdrRange - 1, MAX_GW);
+    const gwIds = Array.from({ length: endGw - effectiveGw + 1 }, (_, i) => effectiveGw + i);
+    // A team can have 0 (blank) or 2+ (double) fixtures in one gameweek.
+    const map = new Map<string, FdrEntry[]>();
+    const push = (key: string, entry: FdrEntry) => {
+      const list = map.get(key);
+      if (list) list.push(entry);
+      else map.set(key, [entry]);
+    };
+    [...(allFixtures ?? [])]
+      .sort((a, b) => (a.kickoff_time ?? '').localeCompare(b.kickoff_time ?? ''))
+      .forEach((f: FplFixture) => {
+        if (f.event == null) return;
+        if (f.team_h_difficulty != null)
+          push(`${f.team_h}-${f.event}`, { difficulty: f.team_h_difficulty, opponent: f.team_a, home: true });
+        if (f.team_a_difficulty != null)
+          push(`${f.team_a}-${f.event}`, { difficulty: f.team_a_difficulty, opponent: f.team_h, home: false });
+      });
+
+    const rows = teams.map((team) => {
+      const cells = gwIds.map((gw) => map.get(`${team.id}-${gw}`) ?? []);
+      const all = cells.flat();
+      const avg = all.length ? all.reduce((s, e) => s + e.difficulty, 0) / all.length : null;
+      return { team, cells, avg };
     });
-    return { fdrGwIds: gwIds, fdrMap: map, eventNames: names };
-  }, [allFixtures, effectiveGw, events, fdrUntilGw]);
+    rows.sort((a, b) => {
+      if (fdrSort === 'easiest' && a.avg != null && b.avg != null && a.avg !== b.avg) return a.avg - b.avg;
+      return a.team.name.localeCompare(b.team.name);
+    });
+    return { fdrGwIds: gwIds, fdrRows: rows };
+  }, [allFixtures, effectiveGw, teams, fdrRange, fdrSort]);
 
   const handleGameweekChange = (gw: number) => {
     setSearchParams((prev) => {
@@ -103,39 +239,64 @@ export default function FixturesPage() {
     } catch (_) {}
   };
 
-  const sortedTeams = useMemo(
-    () => [...teams].sort((a, b) => a.name.localeCompare(b.name)),
-    [teams]
-  );
+  const selectClass =
+    'select-arrow-white h-9 pl-3 pr-8 rounded-lg bg-fpl-raised border border-fpl-border text-sm text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-brand/60';
+  const navBtnClass =
+    'flex h-9 w-9 items-center justify-center rounded-lg border border-fpl-border bg-fpl-raised text-slate-300 transition-colors hover:text-white hover:border-slate-600 disabled:opacity-40 disabled:pointer-events-none';
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8">
-      {/* Fixtures table */}
-      <div className="rounded-xl border border-fpl-border bg-fpl-card p-6 md:p-4 mb-8">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4 md:mb-3">
-          <h1 className="text-xl font-semibold text-white">Fixtures</h1>
-          <div className="flex items-center gap-2">
-            <select
-              id="fixtures-gw-select"
-              value={effectiveGw}
-              onChange={(e) => handleGameweekChange(Number(e.target.value))}
-              className="select-arrow-white px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
-            >
-              {events.length === 0 ? (
-                <option value={effectiveGw}>Gameweek {effectiveGw}</option>
-              ) : (
-                events.map((ev) => (
-                  <option key={ev.id} value={ev.id}>
-                    {ev.name}
-                  </option>
-                ))
-              )}
-            </select>
+    <main className="max-w-6xl mx-auto px-4 py-8 space-y-6">
+      {/* Fixtures list */}
+      <section className="card overflow-hidden">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 sm:px-5 py-4 border-b border-fpl-border">
+          <div>
+            <p className="eyebrow">Premier League</p>
+            <h1 className="section-title mt-0.5">Fixtures</h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                className={navBtnClass}
+                onClick={() => handleGameweekChange(effectiveGw - 1)}
+                disabled={effectiveGw <= 1}
+                aria-label="Previous gameweek"
+              >
+                <ChevronIcon direction="left" />
+              </button>
+              <select
+                id="fixtures-gw-select"
+                value={effectiveGw}
+                onChange={(e) => handleGameweekChange(Number(e.target.value))}
+                className={selectClass}
+                aria-label="Gameweek"
+              >
+                {events.length === 0 ? (
+                  <option value={effectiveGw}>Gameweek {effectiveGw}</option>
+                ) : (
+                  events.map((ev) => (
+                    <option key={ev.id} value={ev.id}>
+                      {ev.name}
+                    </option>
+                  ))
+                )}
+              </select>
+              <button
+                type="button"
+                className={navBtnClass}
+                onClick={() => handleGameweekChange(effectiveGw + 1)}
+                disabled={effectiveGw >= MAX_GW}
+                aria-label="Next gameweek"
+              >
+                <ChevronIcon direction="right" />
+              </button>
+            </div>
             <select
               id="fixtures-tz-select"
               value={timezone}
               onChange={(e) => handleTimezoneChange(e.target.value)}
-              className="select-arrow-white px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
+              className={selectClass}
+              aria-label="Time zone"
             >
               {TIMEZONES.map((tz) => (
                 <option key={tz.value} value={tz.value}>
@@ -147,156 +308,158 @@ export default function FixturesPage() {
         </div>
 
         {bootstrapError && (
-          <div className="mb-4 px-4 py-3 rounded-lg bg-amber-500/20 text-amber-200 text-sm">
+          <div className="m-4 px-4 py-3 rounded-lg bg-amber-500/15 text-amber-200 text-sm">
             Failed to load game data. Please refresh the page.
           </div>
         )}
 
         {error && (
-          <div className="mb-4 px-4 py-3 rounded-lg bg-rose-500/20 text-rose-200 text-sm">
+          <div className="m-4 px-4 py-3 rounded-lg bg-rose-500/15 text-rose-200 text-sm">
             Failed to load fixtures. Please try again.
           </div>
         )}
 
         {isLoading && (
-          <div className="space-y-3 md:space-y-1.5">
+          <div className="p-4 space-y-2">
             {[1, 2, 3, 4, 5].map((i) => (
-              <div
-                key={i}
-                className="h-16 md:h-12 rounded-lg bg-fpl-dark/60 animate-pulse"
-              />
+              <div key={i} className="h-12 rounded-lg bg-fpl-raised/60 animate-pulse" />
             ))}
           </div>
         )}
 
         {!isLoading && fixtures && (
-          <>
-            {fixtures.length === 0 ? (
-              <p className="text-slate-400 text-center py-8">
-                No fixtures for this gameweek.
-              </p>
-            ) : (
-              <ul className="space-y-3 md:space-y-1.5">
-                {fixtures.map((f: FplFixture) => (
-                  <li
-                    key={f.id}
-                    className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 md:gap-2 p-4 md:py-2 md:px-3 rounded-lg bg-fpl-dark/60 border border-fpl-border/60"
-                  >
-                    <div className="text-slate-400 text-xs sm:text-base md:text-sm shrink-0 w-32 md:w-28">
-                      {formatKickoff(f.kickoff_time, timezone)}
-                    </div>
-                    <div className="flex-1 flex items-center justify-between sm:justify-center gap-2 sm:gap-6 md:gap-3">
-                      <div className="flex items-center gap-2 min-w-0 flex-1 justify-end sm:justify-end">
-                        <span className="text-white font-medium truncate text-right text-xs sm:text-base md:text-sm">
-                          {getTeamName(teams, f.team_h)}
-                        </span>
-                        <img
-                          src={`/api/badge/${f.team_h}?v=2`}
-                          alt=""
-                          className="w-8 h-8 sm:w-10 sm:h-10 md:w-8 md:h-8 object-contain shrink-0"
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      </div>
-                      <span className="text-slate-300 font-mono shrink-0 px-1 md:text-sm">
-                        {f.finished
-                          ? `${f.team_h_score ?? '–'} – ${f.team_a_score ?? '–'}`
-                          : 'vs'}
-                      </span>
-                      <div className="flex items-center gap-2 min-w-0 flex-1">
-                        <img
-                          src={`/api/badge/${f.team_a}?v=2`}
-                          alt=""
-                          className="w-8 h-8 sm:w-10 sm:h-10 md:w-8 md:h-8 object-contain shrink-0"
-                          referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                        <span className="text-white font-medium truncate text-xs sm:text-base md:text-sm">
-                          {getTeamName(teams, f.team_a)}
-                        </span>
-                      </div>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </>
+          fixtures.length === 0 ? (
+            <p className="text-slate-400 text-center py-10 text-sm">No fixtures for this gameweek.</p>
+          ) : (
+            <div>
+              {fixtureDays.map((group) => (
+                <div key={group.day}>
+                  <h3 className="eyebrow bg-fpl-raised/50 px-4 sm:px-5 py-2 border-b border-fpl-border/60">
+                    {group.day}
+                  </h3>
+                  <ul className="divide-y divide-fpl-border/50 border-b border-fpl-border/60 last:border-b-0">
+                    {group.items.map((f) => (
+                      <FixtureRow key={f.id} fixture={f} teams={teamById} timezone={timezone} />
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )
         )}
-      </div>
+      </section>
 
       {/* FDR table */}
-      <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden">
-        <h2 className="text-lg font-semibold text-white px-4 py-3 border-b border-fpl-border">
-          FDR Table
-        </h2>
-        <p className="text-slate-400 text-sm px-4 pb-2">
-          Fixture Difficulty Rating (1 = easiest, 5 = hardest) and opponent. Use the slider to show gameweeks up to GW38.
-        </p>
-        <div className="px-4 pb-3 flex flex-wrap items-center gap-4">
-          <label className="flex items-center gap-2 text-sm text-slate-400">
-            <span>Show until GW</span>
-            <span className="font-medium text-white tabular-nums">{fdrUntilGw}</span>
-            <input
-              type="range"
-              min={effectiveGw}
-              max={MAX_GW}
-              value={Math.max(fdrUntilGw, effectiveGw)}
-              onChange={(e) => setFdrUntilGw(Number(e.target.value))}
-              className="w-32 sm:w-48 h-2 rounded-lg appearance-none bg-fpl-dark accent-[#f37025]"
-            />
-            <span className="text-slate-500 text-xs">GW{effectiveGw} – {MAX_GW}</span>
-          </label>
+      <section className="card overflow-hidden">
+        <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4 px-4 sm:px-5 py-4 border-b border-fpl-border">
+          <div>
+            <p className="eyebrow">Fixture difficulty</p>
+            <h2 className="section-title mt-0.5">FDR Table</h2>
+            <p className="mt-1 text-xs sm:text-sm text-slate-400">
+              From GW{effectiveGw}. Opponent in capitals is a home game, lowercase is away.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="segmented" role="group" aria-label="Gameweeks to show">
+              {FDR_RANGES.map((n) => (
+                <button key={n} type="button" data-active={fdrRange === n} onClick={() => setFdrRange(n)}>
+                  {n === MAX_GW ? 'All' : `Next ${n}`}
+                </button>
+              ))}
+            </div>
+            <div className="segmented" role="group" aria-label="Sort teams">
+              <button type="button" data-active={fdrSort === 'easiest'} onClick={() => setFdrSort('easiest')}>
+                Easiest
+              </button>
+              <button type="button" data-active={fdrSort === 'name'} onClick={() => setFdrSort('name')}>
+                A–Z
+              </button>
+            </div>
+          </div>
         </div>
+
         <div className="overflow-x-auto">
-          <table className="w-full text-left text-sm">
+          <table className="w-full border-separate border-spacing-0 text-sm">
             <thead>
-              <tr className="border-b border-fpl-border text-slate-400">
-                <th className="px-4 py-2.5 font-medium">Team</th>
+              <tr className="text-slate-500">
+                <th className="sticky left-0 z-10 bg-fpl-card px-3 sm:px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] border-b border-fpl-border">
+                  Team
+                </th>
+                <th className="px-2 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.08em] border-b border-fpl-border">
+                  Avg
+                </th>
                 {fdrGwIds.map((gwId) => (
-                  <th key={gwId} className="px-3 py-2.5 font-medium text-center min-w-[5rem]">
-                    {eventNames[gwId] ?? `GW${gwId}`}
+                  <th
+                    key={gwId}
+                    className="px-0.5 py-2.5 text-center text-[11px] font-semibold uppercase tracking-[0.08em] whitespace-nowrap border-b border-fpl-border"
+                  >
+                    GW{gwId}
                   </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {sortedTeams.map((t) => (
-                <tr key={t.id} className="border-b border-fpl-border/60 last:border-0">
-                  <td className="px-4 py-2 text-white font-medium">{t.name}</td>
-                  {fdrGwIds.map((gwId) => {
-                    const data = fdrMap.get(`${t.id}-${gwId}`);
-                    const style = data != null ? FDR_COLOR[data.difficulty] ?? '' : '';
-                    const opponentName = data != null ? getTeamName(teams, data.opponent) : null;
-                    return (
-                      <td key={gwId} className="px-3 py-2 text-center align-top">
-                        {data != null ? (
-                          <div className="flex flex-col items-center gap-1">
-                            <span
-                              className={`inline-flex h-7 w-7 items-center justify-center rounded border font-medium ${style}`}
-                              title={`Difficulty ${data.difficulty} vs ${opponentName}`}
-                            >
-                              {data.difficulty}
-                            </span>
-                            <span className="text-slate-400 text-xs leading-tight max-w-[4.5rem] truncate" title={opponentName ?? undefined}>
-                              {opponentName}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-500">—</span>
-                        )}
-                      </td>
-                    );
-                  })}
+              {fdrRows.map(({ team, cells, avg }) => (
+                <tr key={team.id} className="group">
+                  <td className="sticky left-0 z-10 bg-fpl-card group-hover:bg-fpl-raised px-3 sm:px-4 py-1 border-b border-fpl-border/50 transition-colors">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <TeamBadge teamId={team.id} className="h-5 w-5" />
+                      <span className="font-medium text-white whitespace-nowrap">
+                        <span className="sm:hidden">{shortName(team.id)}</span>
+                        <span className="hidden sm:inline">{team.name}</span>
+                      </span>
+                    </div>
+                  </td>
+                  <td className="px-2 py-1 text-center border-b border-fpl-border/50 group-hover:bg-fpl-raised transition-colors">
+                    {avg != null ? (
+                      <span className={`font-display text-xs font-bold tabular-nums ${avgTextColor(avg)}`}>
+                        {avg.toFixed(1)}
+                      </span>
+                    ) : (
+                      <span className="text-slate-600">–</span>
+                    )}
+                  </td>
+                  {cells.map((entries, i) => (
+                    <td key={fdrGwIds[i]} className="p-0.5 border-b border-fpl-border/50 group-hover:bg-fpl-raised transition-colors">
+                      {entries.length === 0 ? (
+                        <div className="flex h-9 min-w-[3.5rem] items-center justify-center rounded-md border border-dashed border-fpl-border text-[10px] font-semibold uppercase tracking-wider text-slate-600">
+                          Blank
+                        </div>
+                      ) : (
+                        <div className="flex h-9 min-w-[3.5rem] flex-col gap-px">
+                          {entries.map((e, j) => {
+                            const opp = shortName(e.opponent);
+                            return (
+                              <div
+                                key={j}
+                                className={`flex flex-1 items-center justify-center rounded-md font-semibold leading-none ${
+                                  entries.length > 1 ? 'text-[10px]' : 'text-xs'
+                                } ${FDR_FILL[e.difficulty] ?? 'bg-fpl-raised text-slate-300'}`}
+                                title={`${teamById.get(e.opponent)?.name ?? opp} (${e.home ? 'home' : 'away'}) · FDR ${e.difficulty}`}
+                              >
+                                {e.home ? opp.toUpperCase() : opp.toLowerCase()}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </td>
+                  ))}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      </div>
+
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 sm:px-5 py-3 border-t border-fpl-border bg-fpl-raised/30">
+          {[1, 2, 3, 4, 5].map((d) => (
+            <span key={d} className="flex items-center gap-1.5 text-xs text-slate-400">
+              <span className={`flex h-5 w-5 items-center justify-center rounded text-[10px] font-bold ${FDR_FILL[d]}`}>{d}</span>
+              {FDR_LABEL[d]}
+            </span>
+          ))}
+        </div>
+      </section>
     </main>
   );
 }

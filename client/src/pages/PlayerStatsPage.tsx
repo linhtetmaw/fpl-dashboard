@@ -1,11 +1,12 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { useBootstrapStatic, getCurrentEvent } from '../hooks/useFplApi';
-import PlayersNews from '../components/PlayersNews';
 import type { FplElement, FplEvent, FplTeam } from '../types/fpl';
 
 const TOP_N = 10;
-/** Approx rows visible in first view before scrolling (row height ~36px). */
-const ROWS_IN_FIRST_VIEW = 20;
+/** Number of transfer leaders shown as photo cards; the rest go in the ranked list. */
+const PODIUM_N = 3;
+/** Approx rows visible in first view before scrolling (row height ~44px). */
+const ROWS_IN_FIRST_VIEW = 16;
 
 const POS_LABELS: Record<number, string> = {
   1: 'GKP',
@@ -14,50 +15,48 @@ const POS_LABELS: Record<number, string> = {
   4: 'FWD',
 };
 
-function TransfersTable({
-  title,
-  rows,
-  countLabel,
-}: {
-  title: string;
-  rows: { name: string; count: number }[];
-  countLabel: string;
-}) {
-  return (
-    <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden">
-      <h3 className="text-sm font-semibold text-white px-3 py-2 border-b border-fpl-border bg-fpl-card/80">
-        {title}
-      </h3>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-xs">
-          <thead>
-            <tr className="text-slate-400 border-b border-fpl-border">
-              <th className="px-3 py-2 font-medium">Player</th>
-              <th className="px-3 py-2 font-medium text-right">{countLabel}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length === 0 ? (
-              <tr>
-                <td colSpan={2} className="px-3 py-4 text-slate-500 text-center">
-                  No data for this gameweek yet
-                </td>
-              </tr>
-            ) : (
-              rows.map((row, i) => (
-                <tr key={i} className="border-b border-fpl-border/60 last:border-0">
-                  <td className="px-3 py-2 text-white">{row.name}</td>
-                  <td className="px-3 py-2 text-slate-300 text-right tabular-nums">
-                    {row.count.toLocaleString()}
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+const POS_PILL: Record<number, string> = {
+  1: 'bg-amber-400/10 text-amber-300 ring-amber-400/20',
+  2: 'bg-sky-400/10 text-sky-300 ring-sky-400/20',
+  3: 'bg-emerald-400/10 text-emerald-300 ring-emerald-400/20',
+  4: 'bg-rose-400/10 text-rose-300 ring-rose-400/20',
+};
+
+type Direction = 'in' | 'out';
+
+const DIRECTION_STYLES: Record<
+  Direction,
+  { text: string; chip: string; bar: string; glow: string; sign: string }
+> = {
+  in: {
+    text: 'text-emerald-400',
+    chip: 'bg-emerald-400/10 text-emerald-400 ring-emerald-400/25',
+    bar: 'bg-emerald-400/70',
+    glow: 'from-emerald-500/15',
+    sign: '+',
+  },
+  out: {
+    text: 'text-rose-400',
+    chip: 'bg-rose-400/10 text-rose-400 ring-rose-400/25',
+    bar: 'bg-rose-400/70',
+    glow: 'from-rose-500/15',
+    sign: '−',
+  },
+};
+
+interface PlayerSummary {
+  id: number;
+  name: string;
+  teamName: string;
+  teamShort: string;
+  position: string;
+  photoUrl: string | null;
+  price: number | null;
+  totalPoints: number | null;
+}
+
+interface TransferRow extends PlayerSummary {
+  count: number;
 }
 
 /** Build player photo URL for api/player-photo (same params as PitchView). */
@@ -81,82 +80,202 @@ function getPlayerPhotoUrl(element: FplElement | null, teamName: string | undefi
   return `/api/player-photo?${params.toString()}`;
 }
 
-/** Single row: most captained player for current GW and previous GW, with player image. */
-function TopCaptainedTable({
-  currentLabel,
-  currentPlayer,
-  previousLabel,
-  previousPlayer,
+function toSummary(e: FplElement, teamsById: Map<number, FplTeam>): PlayerSummary {
+  const team = teamsById.get(e.team);
+  const teamName = team?.name ?? '';
+  return {
+    id: e.id,
+    name: e.web_name,
+    teamName,
+    teamShort: team?.short_name ?? teamName.slice(0, 3).toUpperCase(),
+    position: POS_LABELS[e.element_type] ?? '',
+    photoUrl: getPlayerPhotoUrl(e, teamName || undefined),
+    price: e.now_cost != null ? e.now_cost / 10 : null,
+    totalPoints: e.total_points ?? null,
+  };
+}
+
+const compact = new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 });
+
+/** Player headshot with an initials fallback when the photo is missing or fails to load. */
+function PlayerPhoto({
+  url,
+  name,
+  className,
+  rounded = 'rounded-full',
 }: {
-  currentLabel: string;
-  currentPlayer: { name: string; photoUrl: string | null } | null;
-  previousLabel: string;
-  previousPlayer: { name: string; photoUrl: string | null } | null;
+  url: string | null;
+  name: string;
+  className: string;
+  rounded?: string;
 }) {
+  const [failed, setFailed] = useState(false);
   return (
-    <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden">
-      <h3 className="text-lg font-semibold text-white px-4 py-3 border-b border-fpl-border bg-fpl-card/80">
-        Top captained players
-      </h3>
-      <div className="overflow-x-auto">
-        <table className="w-full text-left">
-          <thead>
-            <tr className="text-slate-400 text-sm border-b border-fpl-border">
-              <th className="px-4 py-2.5 font-medium">{currentLabel}</th>
-              <th className="px-4 py-2.5 font-medium">{previousLabel}</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr className="border-b border-fpl-border/60 last:border-0">
-              <td className="px-4 py-2.5">
-                {currentPlayer ? (
-                  <div className="flex items-center gap-3">
-                    {currentPlayer.photoUrl ? (
-                      <img
-                        src={currentPlayer.photoUrl}
-                        alt=""
-                        className="w-10 h-10 rounded-full object-cover bg-fpl-dark shrink-0"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    ) : null}
-                    <span className="text-white">{currentPlayer.name}</span>
-                  </div>
-                ) : (
-                  <span className="text-slate-500">—</span>
-                )}
-              </td>
-              <td className="px-4 py-2.5">
-                {previousPlayer ? (
-                  <div className="flex items-center gap-3">
-                    {previousPlayer.photoUrl ? (
-                      <img
-                        src={previousPlayer.photoUrl}
-                        alt=""
-                        className="w-10 h-10 rounded-full object-cover bg-fpl-dark shrink-0"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    ) : null}
-                    <span className="text-white">{previousPlayer.name}</span>
-                  </div>
-                ) : (
-                  <span className="text-slate-500">—</span>
-                )}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+    <div className={`relative shrink-0 overflow-hidden bg-fpl-raised ring-1 ring-fpl-border ${rounded} ${className}`}>
+      {url && !failed ? (
+        <img
+          src={url}
+          alt={name}
+          loading="lazy"
+          className="h-full w-full object-cover object-top"
+          referrerPolicy="no-referrer"
+          onError={() => setFailed(true)}
+        />
+      ) : (
+        <div className="absolute inset-0 flex items-center justify-center font-display text-sm font-bold text-slate-400">
+          {name.slice(0, 2).toUpperCase()}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ArrowIcon({ direction, className = 'h-3.5 w-3.5' }: { direction: Direction; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden>
+      {direction === 'in' ? <path d="M12 19V5M5 12l7-7 7 7" /> : <path d="M12 5v14M19 12l-7 7-7-7" />}
+    </svg>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Top captained                                                       */
+/* ------------------------------------------------------------------ */
+
+function CaptainTile({ label, sublabel, player }: { label: string; sublabel: string | null; player: PlayerSummary | null }) {
+  return (
+    <div className="flex items-center gap-3 sm:gap-4 rounded-xl border border-fpl-border bg-fpl-raised/50 p-3 sm:p-4 min-w-0">
+      {player ? (
+        <div className="relative">
+          <PlayerPhoto url={player.photoUrl} name={player.name} className="h-12 w-12 sm:h-14 sm:w-14" />
+          <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-fpl-brand font-display text-[10px] font-bold text-fpl-dark ring-2 ring-fpl-card">
+            C
+          </span>
+        </div>
+      ) : (
+        <div className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 rounded-full bg-fpl-raised ring-1 ring-fpl-border" />
+      )}
+      <div className="min-w-0">
+        <p className="eyebrow truncate">
+          {label}
+          {sublabel && <span className="text-slate-600"> · {sublabel}</span>}
+        </p>
+        {player ? (
+          <>
+            <p className="font-display text-base sm:text-lg font-semibold text-white truncate mt-0.5">{player.name}</p>
+            <p className="text-xs text-slate-400 truncate">{player.teamName}</p>
+          </>
+        ) : (
+          <p className="text-sm text-slate-500 mt-1">Not available yet</p>
+        )}
       </div>
     </div>
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Transfers                                                           */
+/* ------------------------------------------------------------------ */
+
+function PodiumCard({ row, rank, direction }: { row: TransferRow; rank: number; direction: Direction }) {
+  const s = DIRECTION_STYLES[direction];
+  return (
+    <div
+      className="group relative flex flex-col items-center overflow-hidden rounded-xl border border-fpl-border bg-fpl-raised/60 px-1.5 pb-3 pt-2.5 sm:px-2 text-center min-w-0 transition-colors hover:border-slate-600"
+      title={`${row.name} (${row.teamName}) · ${row.count.toLocaleString()} transfers ${direction}`}
+    >
+      <div className={`pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b ${s.glow} to-transparent`} />
+      <span className="absolute left-2 top-2 font-display text-xs font-bold text-slate-500">{rank}</span>
+      <PlayerPhoto
+        url={row.photoUrl}
+        name={row.name}
+        className="relative h-14 w-14 sm:h-[72px] sm:w-[72px]"
+      />
+      <p className="relative mt-2 w-full truncate text-xs sm:text-sm font-semibold text-white">{row.name}</p>
+      <p className="relative text-[10px] sm:text-[11px] text-slate-500">
+        {row.teamShort} · {row.position}
+        {row.price != null && <span className="hidden sm:inline"> · £{row.price.toFixed(1)}</span>}
+      </p>
+      <p className={`relative mt-1.5 font-display text-sm sm:text-base font-bold tabular-nums ${s.text}`}>
+        {s.sign}
+        {compact.format(row.count)}
+      </p>
+    </div>
+  );
+}
+
+function TransferColumn({ direction, rows }: { direction: Direction; rows: TransferRow[] }) {
+  const s = DIRECTION_STYLES[direction];
+  const podium = rows.slice(0, PODIUM_N);
+  const rest = rows.slice(PODIUM_N);
+  const max = rows[0]?.count ?? 1;
+
+  return (
+    <div className="min-w-0">
+      <div className="mb-3 flex items-center gap-2">
+        <span className={`flex h-6 w-6 items-center justify-center rounded-md ring-1 ${s.chip}`}>
+          <ArrowIcon direction={direction} />
+        </span>
+        <h4 className="text-sm font-semibold text-white">
+          Most transferred {direction}
+        </h4>
+      </div>
+
+      {rows.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-fpl-border px-4 py-8 text-center text-sm text-slate-500">
+          No data for this gameweek yet
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-3 gap-2">
+            {podium.map((row, i) => (
+              <PodiumCard key={row.id} row={row} rank={i + 1} direction={direction} />
+            ))}
+          </div>
+
+          {rest.length > 0 && (
+            <ol className="mt-3 divide-y divide-fpl-border/60 rounded-xl border border-fpl-border bg-fpl-raised/30">
+              {rest.map((row, i) => (
+                <li key={row.id} className="flex items-center gap-3 px-3 py-2">
+                  <span className="w-4 shrink-0 text-right font-display text-xs font-semibold text-slate-500 tabular-nums">
+                    {i + PODIUM_N + 1}
+                  </span>
+                  <PlayerPhoto url={row.photoUrl} name={row.name} className="h-7 w-7" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-1.5 min-w-0">
+                      <span className="truncate text-sm text-white">{row.name}</span>
+                      <span className="shrink-0 text-[11px] text-slate-500">{row.teamShort}</span>
+                    </div>
+                    <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-fpl-border/60">
+                      <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${Math.max(4, (row.count / max) * 100)}%` }} />
+                    </div>
+                  </div>
+                  <span className="w-16 shrink-0 text-right text-xs font-medium text-slate-300 tabular-nums">
+                    {row.count.toLocaleString()}
+                  </span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Player stats table                                                  */
+/* ------------------------------------------------------------------ */
+
 type SortKey = 'points' | 'price' | 'selected' | 'form' | 'rank';
+
+const SORT_OPTIONS: { key: SortKey; label: string }[] = [
+  { key: 'points', label: 'Points' },
+  { key: 'price', label: 'Price' },
+  { key: 'selected', label: 'Sel %' },
+  { key: 'form', label: 'Form' },
+  { key: 'rank', label: 'Rank' },
+];
 
 function SortableTh({
   label,
@@ -176,19 +295,26 @@ function SortableTh({
     <th
       role="button"
       tabIndex={0}
+      aria-sort={isActive ? (sortDir === 'desc' ? 'descending' : 'ascending') : undefined}
       onClick={() => onSort(sortKey)}
       onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && onSort(sortKey)}
-      className="px-4 py-2.5 font-medium text-right cursor-pointer select-none hover:text-white transition-colors"
+      className={`px-4 py-3 text-right text-[11px] font-semibold uppercase tracking-[0.08em] cursor-pointer select-none whitespace-nowrap transition-colors ${
+        isActive ? 'text-fpl-brand' : 'text-slate-500 hover:text-slate-300'
+      }`}
     >
-      <span className="text-slate-400 hover:text-white">
-        {label}
-        {isActive && (
-          <span className="ml-1 text-white" aria-hidden>
-            {sortDir === 'desc' ? '↓' : '↑'}
-          </span>
-        )}
+      {label}
+      <span className={`ml-1 inline-block w-2 ${isActive ? '' : 'opacity-0'}`} aria-hidden>
+        {sortDir === 'desc' ? '↓' : '↑'}
       </span>
     </th>
+  );
+}
+
+function PosPill({ type }: { type: number }) {
+  return (
+    <span className={`inline-flex shrink-0 items-center rounded px-1.5 py-px text-[10px] font-semibold ring-1 ${POS_PILL[type] ?? ''}`}>
+      {POS_LABELS[type]}
+    </span>
   );
 }
 
@@ -209,6 +335,8 @@ function PlayerStatsTable({
 }) {
   const [sortKey, setSortKey] = useState<SortKey>('points');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
+
+  const teamsById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
 
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -263,90 +391,100 @@ function PlayerStatsTable({
   }, [filtered, sortKey, sortDir]);
 
   const price = (cost: number | undefined) =>
-    cost != null ? (cost / 10).toFixed(1) : '—';
+    cost != null ? `£${(cost / 10).toFixed(1)}` : '—';
   const pct = (s: string | undefined) => (s != null && s !== '' ? `${s}%` : '—');
   const rank = (r: number | undefined) => (r != null ? r.toLocaleString() : '—');
+  const teamShort = (id: number) => {
+    const t = teamsById.get(id);
+    return t?.short_name ?? t?.name ?? '';
+  };
 
   return (
-    <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden min-w-0 w-full">
-      <h3 className="text-lg font-semibold text-white px-4 py-3 border-b border-fpl-border bg-fpl-card/80">
-        Player Stats
-      </h3>
-      <div className="px-4 py-3 flex flex-wrap gap-3 border-b border-fpl-border/60">
-        <label className="flex items-center gap-2 text-sm text-slate-400">
-          Position
-          <select
-            value={positionFilter}
-            onChange={(e) => onPositionChange(e.target.value)}
-            className="select-arrow-white bg-fpl-bg border border-fpl-border rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-fpl-border"
-          >
-            <option value="">All</option>
+    <div className="card overflow-hidden min-w-0 w-full">
+      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-5 border-b border-fpl-border">
+        <div>
+          <h3 className="section-title">All players</h3>
+          <p className="text-xs text-slate-500 mt-0.5">
+            {sorted.length} players<span className="hidden md:inline"> · click a column to sort</span>
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="segmented" role="group" aria-label="Filter by position">
+            <button type="button" data-active={positionFilter === ''} onClick={() => onPositionChange('')}>
+              All
+            </button>
             {[1, 2, 3, 4].map((id) => (
-              <option key={id} value={String(id)}>
+              <button
+                key={id}
+                type="button"
+                data-active={positionFilter === String(id)}
+                onClick={() => onPositionChange(String(id))}
+              >
                 {POS_LABELS[id]}
-              </option>
+              </button>
             ))}
-          </select>
-        </label>
-        <label className="flex items-center gap-2 text-sm text-slate-400">
-          Team
+          </div>
           <select
+            aria-label="Filter by team"
             value={teamFilter}
             onChange={(e) => onTeamChange(e.target.value)}
-            className="select-arrow-white bg-fpl-bg border border-fpl-border rounded-lg px-3 py-1.5 text-white text-sm focus:outline-none focus:ring-1 focus:ring-fpl-border min-w-[140px]"
+            className="select-arrow-white rounded-lg border border-fpl-border bg-fpl-raised px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-fpl-brand/60 min-w-[150px]"
           >
-            <option value="">All</option>
+            <option value="">All teams</option>
             {teams.map((t) => (
               <option key={t.id} value={String(t.id)}>
                 {t.name}
               </option>
             ))}
           </select>
-        </label>
+          {/* Column headers are hidden on mobile, so expose sorting as a select there. */}
+          <select
+            aria-label="Sort by"
+            value={sortKey}
+            onChange={(e) => {
+              setSortKey(e.target.value as SortKey);
+              setSortDir('desc');
+            }}
+            className="md:hidden select-arrow-white rounded-lg border border-fpl-border bg-fpl-raised px-3 py-2 text-sm text-white focus:outline-none focus:ring-2 focus:ring-fpl-brand/60"
+          >
+            {SORT_OPTIONS.map((o) => (
+              <option key={o.key} value={o.key}>
+                Sort: {o.label}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
-      <p className="px-4 py-1 text-slate-500 text-sm border-b border-fpl-border/60">
-        All {sorted.length} players — scroll to see more
-      </p>
 
-      {/* Mobile: card list (no horizontal scroll, native feel) */}
+      {/* Mobile: card list */}
       <div
-        className="md:hidden w-full min-w-0 overflow-y-auto overflow-x-hidden"
-        style={{ maxHeight: `min(${ROWS_IN_FIRST_VIEW * 36}px, 75vh)` }}
+        className="md:hidden w-full min-w-0 overflow-y-auto overflow-x-hidden players-news-scroll"
+        style={{ maxHeight: `min(${ROWS_IN_FIRST_VIEW * 44}px, 75vh)` }}
       >
         {sorted.length === 0 ? (
-          <div className="px-4 py-8 text-slate-500 text-center text-sm">
-            No players match the filters
-          </div>
+          <div className="px-4 py-10 text-slate-500 text-center text-sm">No players match the filters</div>
         ) : (
           <ul className="divide-y divide-fpl-border/60">
-            {sorted.map((e) => {
-              const teamName = teams.find((t) => t.id === e.team)?.name;
-              const displayName = teamName ? `${e.web_name} (${teamName})` : e.web_name;
-              return (
-                <li
-                  key={e.id}
-                  className="px-4 py-3 bg-fpl-card/50 first:border-t-0"
-                >
-                  <p className="text-white font-medium text-sm truncate pr-2" title={displayName}>
-                    {displayName}
-                  </p>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 mt-2 text-slate-400 text-xs">
-                    <span>Points</span>
-                    <span className="text-slate-300 text-right tabular-nums">
-                      {e.total_points != null ? e.total_points.toLocaleString() : '—'}
-                    </span>
-                    <span>Price</span>
-                    <span className="text-slate-300 text-right tabular-nums">{price(e.now_cost)}</span>
-                    <span>Sel %</span>
-                    <span className="text-slate-300 text-right tabular-nums">{pct(e.selected_by_percent)}</span>
-                    <span>Form</span>
-                    <span className="text-slate-300 text-right tabular-nums">{e.form ?? '—'}</span>
-                    <span>Rank</span>
-                    <span className="text-slate-300 text-right tabular-nums">{rank(e.selected_rank)}</span>
-                  </div>
-                </li>
-              );
-            })}
+            {sorted.map((e, i) => (
+              <li key={e.id} className="px-4 py-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-6 shrink-0 font-display text-xs font-semibold text-slate-600 tabular-nums">{i + 1}</span>
+                  <span className="truncate text-sm font-medium text-white">{e.web_name}</span>
+                  <span className="shrink-0 text-[11px] text-slate-500">{teamShort(e.team)}</span>
+                  <PosPill type={e.element_type} />
+                  <span className="ml-auto shrink-0 font-display text-sm font-bold text-white tabular-nums">
+                    {e.total_points ?? '—'}
+                    <span className="ml-0.5 text-[10px] font-medium text-slate-500">pts</span>
+                  </span>
+                </div>
+                <div className="mt-1.5 ml-8 flex gap-4 text-[11px] text-slate-500 tabular-nums">
+                  <span><span className="text-slate-300">{price(e.now_cost)}</span></span>
+                  <span>Sel <span className="text-slate-300">{pct(e.selected_by_percent)}</span></span>
+                  <span>Form <span className="text-slate-300">{e.form ?? '—'}</span></span>
+                  <span>Rank <span className="text-slate-300">{rank(e.selected_rank)}</span></span>
+                </div>
+              </li>
+            ))}
           </ul>
         )}
       </div>
@@ -354,85 +492,55 @@ function PlayerStatsTable({
       {/* Desktop: table in contained scroll */}
       <div
         className="hidden md:block player-stats-scroll w-full min-w-0"
-        style={{ maxHeight: `min(${ROWS_IN_FIRST_VIEW * 36}px, 75vh)` }}
+        style={{ maxHeight: `min(${ROWS_IN_FIRST_VIEW * 44}px, 75vh)` }}
       >
-        <table className="w-full text-left min-w-[600px]">
-          <thead className="sticky top-0 bg-fpl-card z-10 shadow-sm">
-            <tr className="text-slate-400 text-sm border-b border-fpl-border">
-              <th className="sticky left-0 z-20 bg-fpl-card px-3 sm:px-4 py-2.5 font-medium whitespace-nowrap shadow-[4px_0_8px_-2px_rgba(0,0,0,0.25)]">
-                Player
-              </th>
-              <SortableTh
-                label="Points"
-                sortKey="points"
-                currentSortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortableTh
-                label="Price"
-                sortKey="price"
-                currentSortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortableTh
-                label="Sel %"
-                sortKey="selected"
-                currentSortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortableTh
-                label="Form"
-                sortKey="form"
-                currentSortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
-              <SortableTh
-                label="Rank"
-                sortKey="rank"
-                currentSortKey={sortKey}
-                sortDir={sortDir}
-                onSort={handleSort}
-              />
+        <table className="w-full text-left min-w-[640px]">
+          <thead className="sticky top-0 z-10 bg-fpl-raised">
+            <tr className="border-b border-fpl-border">
+              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 w-10">#</th>
+              <th className="px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Player</th>
+              {SORT_OPTIONS.map((o) => (
+                <SortableTh
+                  key={o.key}
+                  label={o.label}
+                  sortKey={o.key}
+                  currentSortKey={sortKey}
+                  sortDir={sortDir}
+                  onSort={handleSort}
+                />
+              ))}
             </tr>
           </thead>
           <tbody>
             {sorted.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 sm:px-4 py-6 text-slate-500 text-center text-sm">
+                <td colSpan={7} className="px-4 py-10 text-slate-500 text-center text-sm">
                   No players match the filters
                 </td>
               </tr>
             ) : (
-              sorted.map((e) => {
-                const teamName = teams.find((t) => t.id === e.team)?.name;
-                const displayName = teamName ? `${e.web_name} (${teamName})` : e.web_name;
+              sorted.map((e, i) => {
+                const cell = (key: SortKey) =>
+                  `px-4 py-2.5 text-right tabular-nums whitespace-nowrap text-sm ${
+                    sortKey === key ? 'text-white font-semibold' : 'text-slate-400'
+                  }`;
                 return (
-                  <tr
-                    key={e.id}
-                    className="group border-b border-fpl-border/60 last:border-0 hover:bg-fpl-card/80"
-                  >
-                    <td className="sticky left-0 z-[1] bg-fpl-card group-hover:bg-fpl-card/80 px-3 sm:px-4 py-2.5 text-white text-sm sm:text-base min-w-[120px] max-w-[180px] truncate shadow-[4px_0_8px_-2px_rgba(0,0,0,0.25)]" title={displayName}>
-                      {displayName}
+                  <tr key={e.id} className="border-b border-fpl-border/50 last:border-0 hover:bg-fpl-raised/50 transition-colors">
+                    <td className="px-4 py-2.5 font-display text-xs font-semibold text-slate-600 tabular-nums">{i + 1}</td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="truncate text-sm font-medium text-white max-w-[180px]" title={teamsById.get(e.team)?.name}>
+                          {e.web_name}
+                        </span>
+                        <span className="text-xs text-slate-500">{teamShort(e.team)}</span>
+                        <PosPill type={e.element_type} />
+                      </div>
                     </td>
-                    <td className="px-3 sm:px-4 py-2.5 text-slate-300 text-right tabular-nums whitespace-nowrap">
-                      {e.total_points != null ? e.total_points.toLocaleString() : '—'}
-                    </td>
-                    <td className="px-3 sm:px-4 py-2.5 text-slate-300 text-right tabular-nums whitespace-nowrap">
-                      {price(e.now_cost)}
-                    </td>
-                    <td className="px-3 sm:px-4 py-2.5 text-slate-300 text-right tabular-nums whitespace-nowrap">
-                      {pct(e.selected_by_percent)}
-                    </td>
-                    <td className="px-3 sm:px-4 py-2.5 text-slate-300 text-right tabular-nums whitespace-nowrap">
-                      {e.form ?? '—'}
-                    </td>
-                    <td className="px-3 sm:px-4 py-2.5 text-slate-300 text-right tabular-nums whitespace-nowrap">
-                      {rank(e.selected_rank)}
-                    </td>
+                    <td className={cell('points')}>{e.total_points != null ? e.total_points.toLocaleString() : '—'}</td>
+                    <td className={cell('price')}>{price(e.now_cost)}</td>
+                    <td className={cell('selected')}>{pct(e.selected_by_percent)}</td>
+                    <td className={cell('form')}>{e.form ?? '—'}</td>
+                    <td className={cell('rank')}>{rank(e.selected_rank)}</td>
                   </tr>
                 );
               })
@@ -444,224 +552,408 @@ function PlayerStatsTable({
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* Prices                                                              */
+/* ------------------------------------------------------------------ */
+
+type PriceTab = 'changes' | 'predicted' | 'value';
+type ValueMetric = 'season' | 'form';
+
+const PRICE_TABS: { key: PriceTab; label: string; blurb: string }[] = [
+  { key: 'changes', label: 'Price changes', blurb: 'Players whose price has moved this gameweek.' },
+  {
+    key: 'predicted',
+    label: 'Predicted',
+    blurb: "Estimate based on net transfers this gameweek. FPL's price formula isn't public.",
+  },
+  { key: 'value', label: 'Value picks', blurb: 'Most points for the money. Only players with regular minutes.' },
+];
+
+/** Price in tenths → "+£0.1m" / "−£0.2m". */
+function formatPriceDelta(tenths: number): string {
+  const sign = tenths > 0 ? '+' : tenths < 0 ? '−' : '';
+  return `${sign}£${(Math.abs(tenths) / 10).toFixed(1)}m`;
+}
+
+function formatSigned(n: number): string {
+  return `${n > 0 ? '+' : n < 0 ? '−' : ''}${Math.abs(n).toLocaleString()}`;
+}
+
+function formatPrice(e: FplElement): string {
+  return e.now_cost != null ? `£${(e.now_cost / 10).toFixed(1)}` : '—';
+}
+
+function netTransfers(e: FplElement): number {
+  return (e.transfers_in_event ?? 0) - (e.transfers_out_event ?? 0);
+}
+
+function deltaClass(n: number): string {
+  return n > 0 ? 'text-emerald-400' : n < 0 ? 'text-rose-400' : 'text-slate-500';
+}
+
+interface StatColumn {
+  label: string;
+  /** Hidden below the sm breakpoint so the table fits on phones. */
+  hideOnMobile?: boolean;
+  highlight?: boolean;
+}
+
+interface StatRow {
+  id: number;
+  player: PlayerSummary;
+  positionType: number;
+  cells: ReactNode[];
+}
+
+/** Compact ranked player table shared by every price tab. */
+function StatTable({
+  title,
+  direction,
+  columns,
+  rows,
+  emptyText,
+}: {
+  title?: string;
+  direction?: Direction;
+  columns: StatColumn[];
+  rows: StatRow[];
+  emptyText: string;
+}) {
+  const th = 'px-2 sm:px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 whitespace-nowrap';
+  return (
+    <div className="min-w-0">
+      {title && direction && (
+        <div className="mb-3 flex items-center gap-2">
+          <span className={`flex h-6 w-6 items-center justify-center rounded-md ring-1 ${DIRECTION_STYLES[direction].chip}`}>
+            <ArrowIcon direction={direction} />
+          </span>
+          <h4 className="text-sm font-semibold text-white">{title}</h4>
+        </div>
+      )}
+      {rows.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-fpl-border px-4 py-8 text-center text-sm text-slate-500">
+          {emptyText}
+        </div>
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-fpl-border bg-fpl-raised/30">
+          <table className="w-full text-left">
+            <thead className="bg-fpl-raised/70">
+              <tr className="border-b border-fpl-border">
+                <th className={`${th} w-8 text-right`}>#</th>
+                <th className={th}>Player</th>
+                {columns.map((c) => (
+                  <th key={c.label} className={`${th} text-right ${c.hideOnMobile ? 'hidden sm:table-cell' : ''} ${c.highlight ? 'text-slate-300' : ''}`}>
+                    {c.label}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row, i) => (
+                <tr key={row.id} className="border-b border-fpl-border/50 last:border-0 hover:bg-fpl-raised/50 transition-colors">
+                  <td className="px-2 sm:px-3 py-2 text-right font-display text-xs font-semibold text-slate-500 tabular-nums">{i + 1}</td>
+                  <td className="px-2 sm:px-3 py-2 max-w-0 w-full">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <PlayerPhoto url={row.player.photoUrl} name={row.player.name} className="hidden sm:block h-8 w-8" />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-white" title={`${row.player.name} (${row.player.teamName})`}>
+                          {row.player.name}
+                        </p>
+                        <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                          {row.player.teamShort}
+                          <PosPill type={row.positionType} />
+                        </div>
+                      </div>
+                    </div>
+                  </td>
+                  {row.cells.map((cell, ci) => (
+                    <td
+                      key={columns[ci].label}
+                      className={`px-2 sm:px-3 py-2 text-right text-sm tabular-nums whitespace-nowrap ${
+                        columns[ci].hideOnMobile ? 'hidden sm:table-cell' : ''
+                      } ${columns[ci].highlight ? 'font-semibold text-white' : 'text-slate-400'}`}
+                    >
+                      {cell}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PricesCard({
+  elements,
+  teamsById,
+  finishedGameweeks,
+}: {
+  elements: FplElement[];
+  teamsById: Map<number, FplTeam>;
+  finishedGameweeks: number;
+}) {
+  const [tab, setTab] = useState<PriceTab>('changes');
+  const [valuePosition, setValuePosition] = useState<string>('');
+  const [valueMetric, setValueMetric] = useState<ValueMetric>('season');
+
+  const baseRow = (e: FplElement) => ({ id: e.id, player: toSummary(e, teamsById), positionType: e.element_type });
+
+  // 1. Actual price changes this gameweek.
+  const { risers, fallers } = useMemo(() => {
+    const changed = elements.filter((e) => (e.cost_change_event ?? 0) !== 0);
+    // Biggest move first, ties broken by the transfer pressure behind it.
+    const sortBy = (dir: 1 | -1) => (a: FplElement, b: FplElement) =>
+      dir * ((b.cost_change_event ?? 0) - (a.cost_change_event ?? 0)) || dir * (netTransfers(b) - netTransfers(a));
+    const toRow = (e: FplElement): StatRow => ({
+      ...baseRow(e),
+      cells: [
+        formatPrice(e),
+        <span className={`font-semibold ${deltaClass(e.cost_change_event ?? 0)}`}>{formatPriceDelta(e.cost_change_event ?? 0)}</span>,
+        <span className={deltaClass(e.cost_change_start ?? 0)}>{formatPriceDelta(e.cost_change_start ?? 0)}</span>,
+        formatSigned(netTransfers(e)),
+      ],
+    });
+    return {
+      risers: changed.filter((e) => (e.cost_change_event ?? 0) > 0).sort(sortBy(1)).slice(0, TOP_N).map(toRow),
+      fallers: changed.filter((e) => (e.cost_change_event ?? 0) < 0).sort(sortBy(-1)).slice(0, TOP_N).map(toRow),
+    };
+  }, [elements, teamsById]);
+
+  // 3. Likely to rise / fall next, ranked by net transfers.
+  const { likelyRise, likelyFall } = useMemo(() => {
+    const toRow = (e: FplElement): StatRow => {
+      const net = netTransfers(e);
+      return {
+        ...baseRow(e),
+        cells: [
+          formatPrice(e),
+          <span className={`font-semibold ${deltaClass(net)}`}>{formatSigned(net)}</span>,
+          e.selected_by_percent != null ? `${e.selected_by_percent}%` : '—',
+        ],
+      };
+    };
+    const byNet = [...elements].sort((a, b) => netTransfers(b) - netTransfers(a));
+    return {
+      likelyRise: byNet.filter((e) => netTransfers(e) > 0).slice(0, TOP_N).map(toRow),
+      likelyFall: byNet.filter((e) => netTransfers(e) < 0).reverse().slice(0, TOP_N).map(toRow),
+    };
+  }, [elements, teamsById]);
+
+  // 4. Value picks: points (or form) per £m, ignoring players who barely play.
+  const minMinutes = Math.round(Math.max(1, finishedGameweeks) * 90 * 0.5);
+  const valueRows = useMemo(() => {
+    const metric = (e: FplElement) => {
+      const cost = (e.now_cost ?? 0) / 10;
+      if (cost <= 0) return 0;
+      const base = valueMetric === 'season' ? e.total_points ?? 0 : parseFloat(e.form ?? '0') || 0;
+      return base / cost;
+    };
+    return elements
+      .filter((e) => (e.minutes ?? 0) >= minMinutes)
+      .filter((e) => !valuePosition || String(e.element_type) === valuePosition)
+      .map((e) => ({ e, v: metric(e) }))
+      .filter((x) => x.v > 0)
+      .sort((a, b) => b.v - a.v)
+      .slice(0, 15)
+      .map(({ e, v }): StatRow => ({
+        ...baseRow(e),
+        cells: [
+          formatPrice(e),
+          valueMetric === 'season' ? (e.total_points ?? 0).toLocaleString() : e.form ?? '—',
+          e.selected_by_percent != null ? `${e.selected_by_percent}%` : '—',
+          <span className="font-display text-fpl-brand">{valueMetric === 'season' ? v.toFixed(1) : v.toFixed(2)}</span>,
+        ],
+      }));
+  }, [elements, teamsById, valuePosition, valueMetric, minMinutes]);
+
+  const activeTab = PRICE_TABS.find((t) => t.key === tab)!;
+
+  return (
+    <section className="card mt-5 p-4 sm:p-5">
+      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h3 className="section-title">Prices</h3>
+          <p className="text-xs text-slate-500 mt-0.5">{activeTab.blurb}</p>
+        </div>
+        <div className="segmented" role="tablist" aria-label="Price views">
+          {PRICE_TABS.map((t) => (
+            <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} data-active={tab === t.key} onClick={() => setTab(t.key)}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {tab === 'changes' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+          {(['in', 'out'] as const).map((dir) => (
+            <StatTable
+              key={dir}
+              title={dir === 'in' ? 'Price risers' : 'Price fallers'}
+              direction={dir}
+              columns={[
+                { label: 'Price' },
+                { label: 'GW', highlight: true },
+                { label: 'Season', hideOnMobile: true },
+                { label: 'Net', hideOnMobile: true },
+              ]}
+              rows={dir === 'in' ? risers : fallers}
+              emptyText={dir === 'in' ? 'No price rises yet this gameweek' : 'No price falls yet this gameweek'}
+            />
+          ))}
+        </div>
+      )}
+
+      {tab === 'predicted' && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+          {(['in', 'out'] as const).map((dir) => (
+            <StatTable
+              key={dir}
+              title={dir === 'in' ? 'Likely to rise' : 'Likely to fall'}
+              direction={dir}
+              columns={[
+                { label: 'Price' },
+                { label: 'Net transfers', highlight: true },
+                { label: 'Sel %', hideOnMobile: true },
+              ]}
+              rows={dir === 'in' ? likelyRise : likelyFall}
+              emptyText="No transfer data for this gameweek yet"
+            />
+          ))}
+        </div>
+      )}
+
+      {tab === 'value' && (
+        <>
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="segmented" role="group" aria-label="Value metric">
+              <button type="button" data-active={valueMetric === 'season'} onClick={() => setValueMetric('season')}>
+                Season pts / £m
+              </button>
+              <button type="button" data-active={valueMetric === 'form'} onClick={() => setValueMetric('form')}>
+                Form / £m
+              </button>
+            </div>
+            <div className="segmented" role="group" aria-label="Filter by position">
+              <button type="button" data-active={valuePosition === ''} onClick={() => setValuePosition('')}>
+                All
+              </button>
+              {[1, 2, 3, 4].map((id) => (
+                <button key={id} type="button" data-active={valuePosition === String(id)} onClick={() => setValuePosition(String(id))}>
+                  {POS_LABELS[id]}
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] text-slate-500 sm:ml-auto">Min. {minMinutes} mins played</span>
+          </div>
+          <StatTable
+            columns={[
+              { label: 'Price' },
+              { label: valueMetric === 'season' ? 'Points' : 'Form', hideOnMobile: true },
+              { label: 'Sel %', hideOnMobile: true },
+              { label: valueMetric === 'season' ? 'Pts / £m' : 'Form / £m', highlight: true },
+            ]}
+            rows={valueRows}
+            emptyText="No players match"
+          />
+        </>
+      )}
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* Page                                                                */
+/* ------------------------------------------------------------------ */
+
 export default function PlayerStatsPage() {
-  const { data: bootstrap, isLoading: bootstrapLoading } = useBootstrapStatic();
+  const { data: bootstrap } = useBootstrapStatic();
   const [positionFilter, setPositionFilter] = useState<string>('');
   const [teamFilter, setTeamFilter] = useState<string>('');
 
-  const { topIn, topOut, topTransferredInPlayer, topTransferredOutPlayer } = useMemo(() => {
+  const teamsById = useMemo(
+    () => new Map((bootstrap?.teams ?? []).map((t) => [t.id, t])),
+    [bootstrap]
+  );
+
+  const { topIn, topOut } = useMemo(() => {
     const elements: FplElement[] = bootstrap?.elements ?? [];
-    const teams = new Map((bootstrap?.teams ?? []).map((t) => [t.id, t.name]));
-
-    const withIn = elements
-      .map((e) => ({
-        element: e,
-        count: e.transfers_in_event ?? 0,
-      }))
-      .filter((x) => x.count > 0)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, TOP_N);
-    const withOut = elements
-      .map((e) => ({
-        element: e,
-        count: e.transfers_out_event ?? 0,
-      }))
-      .filter((x) => x.count > 0)
-      .sort((a, b) => b.count - a.count)
-      .slice(0, TOP_N);
-
-    const name = (e: FplElement) => {
-      const teamName = teams.get(e.team);
-      return teamName ? `${e.web_name} (${teamName})` : e.web_name;
-    };
-
-    const firstIn = withIn[0];
-    const firstOut = withOut[0];
-    const topTransferredInPlayer =
-      firstIn != null
-        ? {
-            name: firstIn.element.web_name,
-            fullName: name(firstIn.element),
-            photoUrl: getPlayerPhotoUrl(firstIn.element, teams.get(firstIn.element.team)),
-            price: firstIn.element.now_cost != null ? firstIn.element.now_cost / 10 : null,
-            totalPoints: firstIn.element.total_points ?? null,
-          }
-        : null;
-    const topTransferredOutPlayer =
-      firstOut != null
-        ? {
-            name: firstOut.element.web_name,
-            fullName: name(firstOut.element),
-            photoUrl: getPlayerPhotoUrl(firstOut.element, teams.get(firstOut.element.team)),
-            price: firstOut.element.now_cost != null ? firstOut.element.now_cost / 10 : null,
-            totalPoints: firstOut.element.total_points ?? null,
-          }
-        : null;
+    const top = (count: (e: FplElement) => number): TransferRow[] =>
+      elements
+        .map((e) => ({ e, count: count(e) }))
+        .filter((x) => x.count > 0)
+        .sort((a, b) => b.count - a.count)
+        .slice(0, TOP_N)
+        .map(({ e, count }) => ({ ...toSummary(e, teamsById), count }));
 
     return {
-      topIn: withIn.map((x) => ({ name: name(x.element), count: x.count })),
-      topOut: withOut.map((x) => ({ name: name(x.element), count: x.count })),
-      topTransferredInPlayer,
-      topTransferredOutPlayer,
+      topIn: top((e) => e.transfers_in_event ?? 0),
+      topOut: top((e) => e.transfers_out_event ?? 0),
     };
-  }, [bootstrap]);
+  }, [bootstrap, teamsById]);
 
-  const { currentGwLabel, currentCaptainedPlayer, previousGwLabel, previousCaptainedPlayer } = useMemo(() => {
+  const { currentGw, currentCaptain, previousGw, previousCaptain } = useMemo(() => {
     const events: FplEvent[] = bootstrap?.events ?? [];
     const elements: FplElement[] = bootstrap?.elements ?? [];
-    const teams = new Map((bootstrap?.teams ?? []).map((t) => [t.id, t.name]));
     const currentGwId = getCurrentEvent(bootstrap ?? undefined);
     const previousGwId = currentGwId != null && currentGwId > 1 ? currentGwId - 1 : null;
 
-    const eventCurrent = currentGwId != null ? events.find((e) => e.id === currentGwId) : null;
-    const eventPrevious = previousGwId != null ? events.find((e) => e.id === previousGwId) : null;
+    const eventCurrent = currentGwId != null ? events.find((e) => e.id === currentGwId) ?? null : null;
+    const eventPrevious = previousGwId != null ? events.find((e) => e.id === previousGwId) ?? null : null;
 
-    const getPlayer = (elementId: number) => {
+    const getPlayer = (elementId: number | null | undefined) => {
+      if (elementId == null) return null;
       const el = elements.find((e) => e.id === elementId);
-      if (!el) return null;
-      const teamName = teams.get(el.team);
-      const name = teamName ? `${el.web_name} (${teamName})` : el.web_name;
-      const photoUrl = getPlayerPhotoUrl(el, teamName ?? undefined);
-      return { name, photoUrl };
+      return el ? toSummary(el, teamsById) : null;
     };
-
-    const currentLabel = eventCurrent ? `Current GW (${eventCurrent.name})` : 'Current gameweek';
-    const previousLabel = eventPrevious ? `Previous GW (${eventPrevious.name})` : 'Previous gameweek';
-    const currentCaptainedPlayer =
-      eventCurrent?.most_captained != null ? getPlayer(eventCurrent.most_captained) : null;
-    const previousCaptainedPlayer =
-      eventPrevious?.most_captained != null ? getPlayer(eventPrevious.most_captained) : null;
 
     return {
-      currentGwLabel: currentLabel,
-      currentCaptainedPlayer,
-      previousGwLabel: previousLabel,
-      previousCaptainedPlayer,
+      currentGw: eventCurrent,
+      currentCaptain: getPlayer(eventCurrent?.most_captained),
+      previousGw: eventPrevious,
+      previousCaptain: getPlayer(eventPrevious?.most_captained),
     };
-  }, [bootstrap]);
+  }, [bootstrap, teamsById]);
 
   return (
-    <main className="max-w-6xl mx-auto px-4 py-8">
-      <section>
-        <div className="mb-6">
-          <TopCaptainedTable
-            currentLabel={currentGwLabel}
-            currentPlayer={currentCaptainedPlayer}
-            previousLabel={previousGwLabel}
-            previousPlayer={previousCaptainedPlayer}
-          />
-        </div>
+    <main className="max-w-6xl mx-auto px-4 py-6 sm:py-8">
+      <div className="mb-5">
+        <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-white">Player Stats</h2>
+        <p className="text-slate-400 text-sm mt-1">Captaincy picks, transfer trends and season stats for every player.</p>
+      </div>
 
-        <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden">
-          <h3 className="text-lg font-semibold text-white px-4 py-3 border-b border-fpl-border bg-fpl-card/80">
-            Transfers (Current Gameweek)
-          </h3>
-          <p className="text-slate-400 text-sm px-4 py-2">
-            Data refreshes every 24 hours.
-          </p>
-          {/* Top transferred in/out – player cards (PitchView style) with price & points; side by side on all viewports */}
-          <div className="grid grid-cols-2 gap-2 sm:gap-4 px-4 pb-2">
-            <div className="flex flex-col items-center min-w-0">
-              <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1 sm:mb-2">Top transferred in</p>
-              {topTransferredInPlayer ? (
-                <div className="flex flex-col items-center rounded-lg border border-fpl-border bg-fpl-dark/80 px-2 py-2 sm:px-3 sm:py-3 flex-shrink-0 hover:border-fpl-accent/50 hover:bg-fpl-dark transition-colors w-full max-w-[180px] mx-auto">
-                  <div className="relative rounded overflow-hidden bg-fpl-dark border border-fpl-border flex-shrink-0 w-12 h-14 sm:w-14 sm:h-[68px] md:w-16 md:h-20">
-                    {topTransferredInPlayer.photoUrl ? (
-                      <img
-                        src={topTransferredInPlayer.photoUrl}
-                        alt={topTransferredInPlayer.name}
-                        className="w-full h-full object-cover object-top"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          const img = e.target as HTMLImageElement;
-                          img.style.display = 'none';
-                          const fallback = img.nextElementSibling;
-                          if (fallback instanceof HTMLElement) fallback.classList.remove('hidden');
-                        }}
-                      />
-                    ) : null}
-                    <div
-                      className={`absolute inset-0 flex items-center justify-center bg-fpl-card text-slate-400 font-bold text-xs ${topTransferredInPlayer.photoUrl ? 'hidden' : ''}`}
-                      aria-hidden={!!topTransferredInPlayer.photoUrl}
-                    >
-                      {topTransferredInPlayer.name.slice(0, 2).toUpperCase()}
-                    </div>
-                  </div>
-                  <p className="mt-1 sm:mt-1.5 text-slate-300 truncate text-center max-w-full text-[10px] sm:text-xs font-medium" title={topTransferredInPlayer.fullName}>
-                    {topTransferredInPlayer.name}
-                  </p>
-                  <div className="flex items-center gap-1 sm:gap-2 mt-0.5 sm:mt-1 text-[10px] sm:text-xs flex-wrap justify-center">
-                    {topTransferredInPlayer.price != null && (
-                      <span className="text-slate-400">£{topTransferredInPlayer.price.toFixed(1)}</span>
-                    )}
-                    {topTransferredInPlayer.totalPoints != null && (
-                      <span className="font-semibold" style={{ color: '#f37025' }}>{topTransferredInPlayer.totalPoints} pts</span>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <span className="text-slate-500 text-xs sm:text-sm py-2 sm:py-4">No data yet</span>
-              )}
-            </div>
-            <div className="flex flex-col items-center min-w-0">
-              <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-wide mb-1 sm:mb-2">Top transferred out</p>
-              {topTransferredOutPlayer ? (
-                <div className="flex flex-col items-center rounded-lg border border-fpl-border bg-fpl-dark/80 px-2 py-2 sm:px-3 sm:py-3 flex-shrink-0 hover:border-fpl-accent/50 hover:bg-fpl-dark transition-colors w-full max-w-[180px] mx-auto">
-                  <div className="relative rounded overflow-hidden bg-fpl-dark border border-fpl-border flex-shrink-0 w-12 h-14 sm:w-14 sm:h-[68px] md:w-16 md:h-20">
-                    {topTransferredOutPlayer.photoUrl ? (
-                      <img
-                        src={topTransferredOutPlayer.photoUrl}
-                        alt={topTransferredOutPlayer.name}
-                        className="w-full h-full object-cover object-top"
-                        referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          const img = e.target as HTMLImageElement;
-                          img.style.display = 'none';
-                          const fallback = img.nextElementSibling;
-                          if (fallback instanceof HTMLElement) fallback.classList.remove('hidden');
-                        }}
-                      />
-                    ) : null}
-                    <div
-                      className={`absolute inset-0 flex items-center justify-center bg-fpl-card text-slate-400 font-bold text-xs ${topTransferredOutPlayer.photoUrl ? 'hidden' : ''}`}
-                      aria-hidden={!!topTransferredOutPlayer.photoUrl}
-                    >
-                      {topTransferredOutPlayer.name.slice(0, 2).toUpperCase()}
-                    </div>
-                  </div>
-                  <p className="mt-1 sm:mt-1.5 text-slate-300 truncate text-center max-w-full text-[10px] sm:text-xs font-medium" title={topTransferredOutPlayer.fullName}>
-                    {topTransferredOutPlayer.name}
-                  </p>
-                  <div className="flex items-center gap-1 sm:gap-2 mt-0.5 sm:mt-1 text-[10px] sm:text-xs flex-wrap justify-center">
-                    {topTransferredOutPlayer.price != null && (
-                      <span className="text-slate-400">£{topTransferredOutPlayer.price.toFixed(1)}</span>
-                    )}
-                    {topTransferredOutPlayer.totalPoints != null && (
-                      <span className="font-semibold" style={{ color: '#f37025' }}>{topTransferredOutPlayer.totalPoints} pts</span>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <span className="text-slate-500 text-xs sm:text-sm py-2 sm:py-4">No data yet</span>
-              )}
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 pt-0">
-            <TransfersTable
-              title="Top Transferred In"
-              rows={topIn}
-              countLabel="Transferred in"
-            />
-            <TransfersTable
-              title="Top Transferred Out"
-              rows={topOut}
-              countLabel="Transferred out"
-            />
-          </div>
+      <section className="card p-4 sm:p-5">
+        <h3 className="section-title mb-3">Most captained</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <CaptainTile label="This gameweek" sublabel={currentGw?.name ?? null} player={currentCaptain} />
+          <CaptainTile label="Last gameweek" sublabel={previousGw?.name ?? null} player={previousCaptain} />
         </div>
       </section>
 
-      <section className="mt-8 min-w-0 overflow-hidden">
+      <section className="card mt-5 p-4 sm:p-5">
+        <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
+          <h3 className="section-title">
+            Transfers
+            {currentGw && <span className="ml-2 text-sm font-medium text-slate-500">{currentGw.name}</span>}
+          </h3>
+          <p className="text-xs text-slate-500">Refreshes every 24 hours</p>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
+          <TransferColumn direction="in" rows={topIn} />
+          <TransferColumn direction="out" rows={topOut} />
+        </div>
+      </section>
+
+      <PricesCard
+        elements={bootstrap?.elements ?? []}
+        teamsById={teamsById}
+        finishedGameweeks={(bootstrap?.events ?? []).filter((e) => e.finished).length}
+      />
+
+      <section className="mt-5 min-w-0 overflow-hidden">
         <PlayerStatsTable
           elements={bootstrap?.elements ?? []}
           teams={bootstrap?.teams ?? []}
@@ -671,14 +963,6 @@ export default function PlayerStatsPage() {
           onTeamChange={setTeamFilter}
         />
       </section>
-
-      <section className="mt-8 h-[50vh] min-h-[280px] max-h-[520px] flex flex-col">
-        <PlayersNews bootstrap={bootstrap ?? undefined} isLoading={bootstrapLoading} />
-      </section>
-
-      <div className="mt-8 rounded-xl border border-fpl-border bg-fpl-card p-12 text-center">
-        <p className="text-slate-400 text-lg">We are still working on it</p>
-      </div>
     </main>
   );
 }

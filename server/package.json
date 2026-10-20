@@ -9,8 +9,8 @@
     "dev": "node --watch index.js"
   },
   "dependencies": {
+    "compression": "^1.8.2",
     "express": "^4.21.0",
-    "cors": "^2.8.5",
     "node-fetch": "^3.3.2"
   }
 }

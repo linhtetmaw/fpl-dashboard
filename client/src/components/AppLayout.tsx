@@ -1,17 +1,26 @@
 import { useState, useEffect } from 'react';
-import { Outlet, NavLink, useSearchParams } from 'react-router-dom';
+import { Outlet, NavLink, Link, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBootstrapStatic } from '../hooks/useFplApi';
+import { ClockIcon, LogoMark, RefreshIcon, SwapIcon } from './icons';
 
 const TEAM_ID_KEY = 'fpl_team_id';
 
-function useNextDeadline(): Date | null {
+const NAV_ITEMS = [
+  { to: '/', label: 'Your Team', end: true },
+  { to: '/player-stats', label: 'Player Stats' },
+  { to: '/player-news', label: 'Player News' },
+  { to: '/fixtures', label: 'Fixtures' },
+  { to: '/squad-planner', label: 'Squad Planner' },
+  { to: '/opinions', label: 'Opinions' },
+];
+
+function useNextDeadline(): { date: Date; name: string } | null {
   const { data: bootstrap } = useBootstrapStatic();
   const nextEvent = bootstrap?.events?.find((e) => e.is_next);
-  const nextDeadline = nextEvent?.deadline_time;
-  if (!nextDeadline) return null;
-  const date = new Date(nextDeadline);
-  return isNaN(date.getTime()) ? null : date;
+  if (!nextEvent?.deadline_time) return null;
+  const date = new Date(nextEvent.deadline_time);
+  return isNaN(date.getTime()) ? null : { date, name: nextEvent.name };
 }
 
 function useCountdown(deadline: Date | null): { d: number; h: number; m: number; s: number } | null {
@@ -38,12 +47,48 @@ function hasStoredTeam(): boolean {
   return Number.isInteger(n) && n > 0;
 }
 
+const pad = (n: number) => String(n).padStart(2, '0');
+
+/** Countdown as compact segments, e.g. 11d 01h 18m 29s. */
+function CountdownDigits({ countdown }: { countdown: { d: number; h: number; m: number; s: number } }) {
+  const parts: [number, string][] = [
+    [countdown.d, 'd'],
+    [countdown.h, 'h'],
+    [countdown.m, 'm'],
+    [countdown.s, 's'],
+  ];
+  return (
+    <span className="tabular-nums font-semibold text-white">
+      {parts.map(([value, unit], i) => (
+        <span key={unit}>
+          {i === 0 ? value : pad(value)}
+          <span className="text-slate-500 font-medium">{unit}</span>
+          {i < parts.length - 1 ? ' ' : ''}
+        </span>
+      ))}
+    </span>
+  );
+}
+
+function DeadlineChip({ className = '' }: { className?: string }) {
+  const deadline = useNextDeadline();
+  const countdown = useCountdown(deadline?.date ?? null);
+  return (
+    <div
+      className={`inline-flex items-center gap-2 rounded-lg border border-fpl-border bg-fpl-raised/70 px-3 py-1.5 text-xs sm:text-sm ${className}`}
+      title={deadline ? `${deadline.name} deadline: ${deadline.date.toLocaleString()}` : undefined}
+    >
+      <ClockIcon className="h-4 w-4 text-fpl-brand shrink-0" />
+      <span className="text-slate-400">{deadline ? `${deadline.name} deadline` : 'Next deadline'}</span>
+      {countdown ? <CountdownDigits countdown={countdown} /> : <span className="text-slate-500">TBC</span>}
+    </div>
+  );
+}
+
 export default function AppLayout() {
   const [, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const hasTeam = hasStoredTeam();
-  const nextDeadline = useNextDeadline();
-  const countdown = useCountdown(nextDeadline);
 
   const [isRefreshing, setIsRefreshing] = useState(false);
 
@@ -60,126 +105,100 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-fpl-dark text-slate-200 flex flex-col">
-      <header className="sticky top-0 z-30 border-b border-fpl-border bg-fpl-card shrink-0">
-        <div className="max-w-6xl mx-auto px-4 py-4">
-          {/* Row 1: Title left, Right: buttons + deadline */}
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <h1 className="text-2xl font-bold" style={{ color: '#f37025' }}>
-              FPL HOUSE
-            </h1>
-            {hasTeam && (
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={handleRefresh}
-                  disabled={isRefreshing}
-                  className="px-4 py-2.5 rounded-lg border border-fpl-border text-slate-300 hover:bg-fpl-card hover:border-fpl-accent/50 text-sm font-medium transition-colors inline-flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed"
-                >
-                  {isRefreshing ? (
-                    <>
-                      <span className="inline-block w-4 h-4 border-2 border-slate-400 border-t-transparent rounded-full animate-spin" aria-hidden />
-                      <span>Refreshing…</span>
-                    </>
-                  ) : (
-                    'Refresh data'
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleChangeTeam}
-                  className="px-4 py-2.5 rounded-lg border border-fpl-border text-slate-300 hover:bg-fpl-card hover:border-fpl-accent/50 text-sm font-medium transition-colors"
-                >
-                  Change team
-                </button>
-              </div>
-            )}
-          </div>
-          {/* Row 2: Nav buttons + Gameweek deadline (same level) */}
-          <div className="flex flex-wrap items-center justify-between gap-3 mt-3">
-            <nav className="flex flex-wrap items-center gap-2">
-              <NavLink
-              to="/"
-              end
-              className={({ isActive }) =>
-                `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-fpl-accent text-white'
-                    : 'bg-fpl-dark/60 text-slate-400 hover:text-slate-200'
-                }`
-              }
-            >
-              Your Team
-            </NavLink>
-            <NavLink
-              to="/player-stats"
-              className={({ isActive }) =>
-                `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-fpl-accent text-white'
-                    : 'bg-fpl-dark/60 text-slate-400 hover:text-slate-200'
-                }`
-              }
-            >
-              Player Stats
-            </NavLink>
-            <NavLink
-              to="/fixtures"
-              className={({ isActive }) =>
-                `px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-fpl-accent text-white'
-                    : 'bg-fpl-dark/60 text-slate-400 hover:text-slate-200'
-                }`
-              }
-            >
-              Fixtures
-            </NavLink>
-            </nav>
-            {/* Desktop: deadline in header. Hidden on mobile (shown below "Advertise here"). */}
-            <div className="hidden md:flex flex-col items-end">
-              <span className="text-sm font-bold" style={{ color: '#f37025' }}>
-                Next Gameweek Deadline
-              </span>
-              {countdown ? (
-                <span className="text-white text-sm tabular-nums mt-0.5">
-                  {countdown.d} Days : {countdown.h} Hours : {countdown.m} Minutes : {countdown.s} Seconds
+    <div className="min-h-screen text-slate-200 flex flex-col">
+      <header className="sticky top-0 z-30 border-b border-fpl-border bg-fpl-dark/85 backdrop-blur supports-[backdrop-filter]:bg-fpl-dark/70">
+        <div className="max-w-6xl mx-auto px-4">
+          <div className="flex items-center justify-between gap-4 h-16">
+            <div className="flex items-center gap-8 min-w-0">
+              <Link to="/" className="flex items-center gap-2.5 shrink-0" aria-label="FPL House home">
+                <LogoMark className="h-8 w-8" />
+                <span className="font-display text-xl tracking-[-0.04em] text-white">
+                  <span className="font-bold">FPL</span><span className="font-normal text-fpl-brand">house</span>
                 </span>
-              ) : (
-                <span className="text-slate-500 text-sm mt-0.5">—</span>
+              </Link>
+              <nav className="hidden md:flex items-center gap-1 h-16" aria-label="Main">
+                {NAV_ITEMS.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    className={({ isActive }) =>
+                      `relative flex items-center h-full px-3 text-sm font-medium transition-colors ${
+                        isActive
+                          ? 'text-white after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-fpl-brand'
+                          : 'text-slate-400 hover:text-slate-100'
+                      }`
+                    }
+                  >
+                    {item.label}
+                  </NavLink>
+                ))}
+              </nav>
+            </div>
+            <div className="flex items-center gap-2">
+              <DeadlineChip className="hidden lg:inline-flex" />
+              {hasTeam && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleRefresh}
+                    disabled={isRefreshing}
+                    className="btn-ghost px-2.5 sm:px-3"
+                    title="Refresh data"
+                  >
+                    <RefreshIcon className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                    <span className="hidden sm:inline">{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
+                  </button>
+                  <button type="button" onClick={handleChangeTeam} className="btn-ghost px-2.5 sm:px-3" title="Change team">
+                    <SwapIcon className="h-4 w-4" />
+                    <span className="hidden sm:inline">Change team</span>
+                  </button>
+                </>
               )}
             </div>
           </div>
+          {/* Mobile nav: horizontally scrollable tabs */}
+          <nav className="md:hidden -mx-4 px-4 flex gap-1 overflow-x-auto pb-2 [scrollbar-width:none]" aria-label="Main">
+            {NAV_ITEMS.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) =>
+                  `shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium transition-colors ${
+                    isActive ? 'bg-fpl-accent text-fpl-purple font-semibold' : 'text-slate-400 hover:text-slate-100 bg-fpl-raised/60'
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
         </div>
       </header>
-      <div className="shrink-0 flex justify-center px-4">
-        <div className="w-full max-w-6xl border-b border-fpl-border bg-fpl-card/40 py-2 flex items-center justify-center min-h-[52px] rounded-b-lg">
-          <span className="text-slate-500 text-sm">Advertise here</span>
+
+      <div className="max-w-6xl w-full mx-auto px-4 pt-4 space-y-3">
+        {/* Deadline shown here below lg; in the header on large screens. */}
+        <DeadlineChip className="lg:hidden w-full justify-center" />
+        <div className="flex items-center justify-center rounded-xl border border-dashed border-fpl-border/80 bg-fpl-card/40 h-12 text-xs text-slate-500">
+          <span className="eyebrow mr-2">Ad</span>
+          Advertise here
         </div>
       </div>
-      {/* Mobile only: deadline between "Advertise here" and main content (up to two lines) */}
-      <div className="md:hidden shrink-0 px-4 py-2 border-b border-fpl-border bg-fpl-card/30">
-        <p className="text-center text-sm tabular-nums">
-          <span className="font-bold block" style={{ color: '#f37025' }}>
-            Next Gameweek Deadline
-          </span>
-          <span className="text-slate-300">
-            {countdown ? (
-              <>
-                {countdown.d} Days: {countdown.h} Hours: {countdown.m} Minutes: {countdown.s} Seconds
-              </>
-            ) : (
-              '—'
-            )}
-          </span>
-        </p>
-      </div>
+
       <div className="flex-1 min-h-0">
         <Outlet />
       </div>
-      <footer className="shrink-0 border-t border-fpl-border bg-fpl-card/60 py-4">
-        <div className="max-w-6xl mx-auto px-4 text-center text-slate-500 text-sm">
-          © FPL HOUSE 2026. Developed by Reindeers.
+
+      <footer className="shrink-0 border-t border-fpl-border mt-8">
+        <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+          <div className="flex items-center gap-2">
+            <LogoMark className="h-5 w-5" />
+            <span>© {new Date().getFullYear()} FPL House · Developed by Reindeers</span>
+          </div>
+          <p className="text-center sm:text-right">
+            Data from the official Fantasy Premier League API. Not affiliated with the Premier League.
+          </p>
         </div>
       </footer>
     </div>

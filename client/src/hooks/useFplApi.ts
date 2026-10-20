@@ -3,6 +3,7 @@ import type {
   BootstrapStatic,
   PicksResponse,
   EventLiveResponse,
+  FplFixture,
   TeamPointsSummary,
   PlayerPoints,
 } from '../types/fpl';
@@ -110,6 +111,8 @@ export function computeTeamPointsSummary(
   bootstrap: BootstrapStatic,
   picks: PicksResponse,
   live: EventLiveResponse,
+  /** Fixtures for this gameweek; null if unavailable (then no auto-subs or armband changes are applied). */
+  fixtures: FplFixture[] | null,
   entryName: string | null
 ): TeamPointsSummary {
   const elements: Record<number, { web_name: string; team: number; element_type: number }> = {};
@@ -128,7 +131,24 @@ export function computeTeamPointsSummary(
   });
 
   const chip = picks.chips?.[0]?.name ?? picks.active_chip ?? null;
+  const isBenchBoost = chip != null && /bench\s*boost|bboost/i.test(String(chip));
   const players: PlayerPoints[] = [];
+
+  // Clubs with a fixture this GW that hasn't reached full time. Without fixtures we can't tell, so treat every club as pending (no auto-subs).
+  const clubsStillPlaying = new Set<number>();
+  if (fixtures) {
+    for (const f of fixtures) {
+      if (f.event === gameweek && !(f.finished || f.finished_provisional)) {
+        clubsStillPlaying.add(f.team_h);
+        clubsStillPlaying.add(f.team_a);
+      }
+    }
+  }
+  const isGameweekOver = (elementId: number) => {
+    if (!fixtures) return false;
+    const club = elements[elementId]?.team;
+    return club != null && !clubsStillPlaying.has(club);
+  };
 
   for (const pick of picks.picks) {
     const meta = elements[pick.element];
@@ -167,44 +187,66 @@ export function computeTeamPointsSummary(
     });
   }
 
+  const getMins = (p: PlayerPoints) => (typeof p.minutes === 'number' && Number.isFinite(p.minutes) ? p.minutes : Number(p.minutes) || 0);
+  // A player only counts as "did not play" once all of their club's fixtures this GW are over (blank GW counts as over).
+  const didNotPlay = (p: PlayerPoints) => getMins(p) === 0 && isGameweekOver(p.element_id);
+
+  // Armband: if the captain did not play, the vice-captain (if they played) gets the captain's multiplier (x2, or x3 with Triple Captain).
+  const captain = players.find((p) => p.is_captain && !p.is_on_bench);
+  const vice = players.find((p) => p.is_vice_captain && !p.is_on_bench);
+  const captainMultiplier = captain && captain.multiplier > 1 ? captain.multiplier : 2;
+  const armbandId =
+    captain && didNotPlay(captain) && vice && getMins(vice) > 0 ? vice.element_id : captain?.element_id;
+  // Picks API gives bench players multiplier 0; score everyone at 1x (bench points are shown raw) except the armband holder.
+  for (const p of players) {
+    p.multiplier = p.element_id === armbandId ? captainMultiplier : 1;
+    p.total_points_effective = (Number(p.total_points_raw) || 0) * p.multiplier;
+  }
+
   const starting = players.filter((p) => !p.is_on_bench).sort((a, b) => a.position - b.position);
   const bench = players.filter((p) => p.is_on_bench).sort((a, b) => a.position - b.position);
-  const getMins = (p: PlayerPoints) => (typeof p.minutes === 'number' && Number.isFinite(p.minutes) ? p.minutes : Number(p.minutes) || 0);
 
-  // FPL rule: a bench player can only substitute for a non-playing starter of the same position (GKP→GKP, DEF→DEF, MID→MID, FWD→FWD).
-  // Find first bench player (in bench order) with matching element_type; each bench player used at most once.
-  const usedBenchIndices = new Set<number>();
-  const findBenchSub = (elementType: number): number => {
-    for (let i = 0; i < bench.length; i++) {
-      if (!usedBenchIndices.has(i) && bench[i].element_type === elementType) return i;
-    }
-    return -1;
+  // FPL auto-sub rules: starters are processed in pitch order; each takes the first bench player (in bench order) who played.
+  // GKP only swaps with GKP. Outfield swaps are allowed across positions as long as the XI keeps at least 3 DEF, 2 MID and 1 FWD.
+  // No auto-subs when Bench Boost is active (all 15 score).
+  const typeCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
+  for (const s of starting) typeCounts[s.element_type] = (typeCounts[s.element_type] ?? 0) + 1;
+  const formationValidAfterSwap = (outType: number, inType: number) => {
+    const c = { ...typeCounts };
+    c[outType] -= 1;
+    c[inType] = (c[inType] ?? 0) + 1;
+    return c[2] >= 3 && c[3] >= 2 && c[4] >= 1;
   };
+  const usedBenchIndices = new Set<number>();
+  const subFor = new Map<number, PlayerPoints>();
+  if (!isBenchBoost) {
+    for (const starter of starting) {
+      if (!didNotPlay(starter)) continue;
+      const subIdx = bench.findIndex((b, i) => {
+        if (usedBenchIndices.has(i) || getMins(b) === 0) return false;
+        if (starter.element_type === 1 || b.element_type === 1) return starter.element_type === b.element_type;
+        return formationValidAfterSwap(starter.element_type, b.element_type);
+      });
+      if (subIdx < 0) continue;
+      usedBenchIndices.add(subIdx);
+      typeCounts[starter.element_type] -= 1;
+      typeCounts[bench[subIdx].element_type] += 1;
+      subFor.set(starter.element_id, bench[subIdx]);
+    }
+  }
 
   let starting_points = 0;
   const effectivePitchPlayers: PlayerPoints[] = [];
   const replacedStarters: PlayerPoints[] = [];
   for (const starter of starting) {
-    if (getMins(starter) > 0) {
+    const sub = subFor.get(starter.element_id);
+    if (sub) {
+      effectivePitchPlayers.push({ ...sub, position: starter.position, is_on_bench: false, is_substitute: true });
+      starting_points += sub.total_points_effective;
+      replacedStarters.push(starter);
+    } else {
       effectivePitchPlayers.push(starter);
       starting_points += starter.total_points_effective;
-    } else {
-      const subIdx = findBenchSub(starter.element_type);
-      if (subIdx >= 0) {
-        usedBenchIndices.add(subIdx);
-        const sub = bench[subIdx];
-        effectivePitchPlayers.push({
-          ...sub,
-          position: starter.position,
-          element_type: starter.element_type,
-          is_on_bench: false,
-          is_substitute: true,
-        });
-        starting_points += sub.total_points_effective;
-        replacedStarters.push(starter);
-      } else {
-        effectivePitchPlayers.push(starter);
-      }
     }
   }
 
@@ -216,7 +258,6 @@ export function computeTeamPointsSummary(
     bench_points += bench[i].total_points_effective;
   }
 
-  const isBenchBoost = chip != null && /bench\s*boost|bboost/i.test(String(chip));
   const total_points = starting_points + (isBenchBoost ? bench_points : 0);
 
   return {

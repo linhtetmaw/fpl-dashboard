@@ -2,37 +2,7 @@ import { useState } from 'react';
 import type { PlayerPoints } from '../types/fpl';
 import type { BootstrapStatic, FplElement } from '../types/fpl';
 import PlayerDetailCard from './PlayerDetailCard';
-
-/** Build search name for third-party photo API (TheSportsDB): "First_Last" or web_name. */
-function getPlayerPhotoQuery(element: FplElement | undefined): { name: string; code: string } | null {
-  if (!element) return null;
-  const first = element.first_name?.trim() ?? '';
-  const second = element.second_name?.trim() ?? '';
-  const name = first && second ? `${first}_${second}`.replace(/\s+/g, '_') : element.web_name?.replace(/\s+/g, '_') ?? '';
-  const rawCode = element.code ?? element.photo;
-  const code =
-    typeof rawCode === 'number'
-      ? String(rawCode)
-      : typeof rawCode === 'string'
-        ? rawCode.replace(/\D/g, '')
-        : '';
-  if (!name && !code) return null;
-  return { name: name || '', code };
-}
-
-/** Player photo URL: TheSportsDB first (with team so we get the right player, e.g. Gabriel Magalhaes at Arsenal), server falls back to PL CDN. */
-function getPlayerImageUrl(
-  element: FplElement | undefined,
-  teamName: string | undefined
-): string | null {
-  const q = getPlayerPhotoQuery(element);
-  if (!q || (!q.name && !q.code)) return null;
-  const params = new URLSearchParams();
-  if (q.name) params.set('name', q.name);
-  if (q.code) params.set('code', q.code);
-  if (teamName?.trim()) params.set('team', teamName.trim());
-  return `/api/player-photo?${params.toString()}`;
-}
+import { getPlayerImageUrl } from '../utils/playerPhoto';
 
 /** Group starting XI by element_type: 1=GKP, 2=DEF, 3=MID, 4=FWD. Order: FWD top → GKP bottom (vertical pitch). */
 function getFormationRows(players: PlayerPoints[]): PlayerPoints[][] {
@@ -80,21 +50,7 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
   const selectedElement = selectedElementId != null ? elementById.get(selectedElementId) : null;
   const selectedTeamName = selectedElement != null ? teamById.get(selectedElement.team) : undefined;
 
-  /** Shared card box: border, background, rounded. Used for pitch and bench. */
-  const cardBoxClass =
-    'flex flex-col items-center rounded-lg border border-fpl-border bg-fpl-dark/80 px-2 py-2 flex-shrink-0 cursor-pointer hover:border-fpl-accent/50 hover:bg-fpl-dark transition-colors';
-
-  const renderPlayerCard = (
-    p: PlayerPoints,
-    opts: { imageSize?: string; nameClass?: string; pointsClass?: string; maxNameWidth?: string; isReplaced?: boolean }
-  ) => {
-    const {
-      imageSize = 'w-12 h-14 sm:w-14 sm:h-[68px]',
-      nameClass = 'text-xs font-medium',
-      pointsClass = 'text-xs font-semibold',
-      maxNameWidth = 'max-w-[72px]',
-      isReplaced = false,
-    } = opts;
+  const renderPlayerCard = (p: PlayerPoints, { isReplaced = false }: { isReplaced?: boolean }) => {
     const element = elementById.get(p.element_id);
     const teamName = element ? teamById.get(element.team) : undefined;
     const imageUrl = getPlayerImageUrl(element, teamName);
@@ -103,13 +59,13 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
       <button
         type="button"
         key={`${p.element_id}-${p.position}-${isSub ? 'sub' : ''}-${isReplaced ? 'repl' : ''}`}
-        className={`${cardBoxClass} text-left`}
+        className={`group flex flex-col items-center w-[64px] sm:w-[80px] shrink-0 rounded-lg overflow-hidden text-left transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand ${
+          isReplaced ? 'opacity-60' : ''
+        }`}
         onClick={() => element && setSelectedElementId(p.element_id)}
-        title={isSub ? 'Auto-sub (replaced non-playing starter)' : isReplaced ? 'Did not play (replaced by sub)' : 'View player details'}
+        title={isSub ? 'Auto-sub (replaced non-playing starter)' : isReplaced ? 'Did not play (replaced by sub)' : `View ${p.web_name}`}
       >
-        <div
-          className={`relative rounded overflow-hidden bg-fpl-dark border border-fpl-border flex-shrink-0 ${imageSize}`}
-        >
+        <div className="relative w-12 h-14 sm:w-[60px] sm:h-[70px] flex-shrink-0 overflow-hidden rounded-t-md">
           {imageUrl ? (
             <img
               src={imageUrl}
@@ -125,85 +81,73 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
             />
           ) : null}
           <div
-            className={`absolute inset-0 flex items-center justify-center bg-fpl-card text-slate-400 font-bold text-xs ${imageUrl ? 'hidden' : ''}`}
+            className={`absolute inset-0 flex items-center justify-center bg-fpl-raised text-slate-400 font-bold text-xs ${imageUrl ? 'hidden' : ''}`}
             aria-hidden={!!imageUrl}
           >
             {p.web_name.slice(0, 2).toUpperCase()}
           </div>
           {p.is_captain && (
-            <span className="absolute top-0 right-0 bg-fpl-accent text-white text-[8px] font-bold px-0.5 rounded-bl">
+            <span className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-fpl-dark text-[9px] font-extrabold shadow">
               C
             </span>
           )}
           {p.is_vice_captain && (
-            <span className="absolute top-0 left-0 bg-slate-500/90 text-white text-[8px] font-bold px-0.5 rounded-br">
-              VC
+            <span className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-800 text-white text-[8px] font-bold ring-1 ring-white/40 shadow">
+              V
             </span>
           )}
           {isSub && (
-            <span className="absolute bottom-0 left-0 right-0 bg-amber-500/90 text-slate-900 text-[8px] font-bold py-0.5 text-center">
+            <span className="absolute top-0.5 left-0.5 rounded bg-amber-400 px-1 text-[8px] font-bold text-slate-900 shadow">
               SUB
             </span>
           )}
-          {isReplaced && (
-            <span className="absolute bottom-0 left-0 right-0 bg-slate-500/90 text-white text-[8px] font-bold py-0.5 text-center">
-              0 min
-            </span>
-          )}
         </div>
-        <p className={`mt-1 text-slate-300 truncate text-center ${maxNameWidth} ${nameClass}`}>
+        <p className="w-full truncate bg-fpl-dark/95 px-1 py-0.5 text-center text-[10px] sm:text-[11px] font-semibold text-white">
           {p.web_name}
         </p>
-        <p className={pointsClass} style={{ color: '#f37025' }}>{p.total_points_effective} pts</p>
+        <p
+          className={`w-full py-0.5 text-center text-[10px] sm:text-[11px] font-bold tabular-nums ${
+            isReplaced ? 'bg-slate-600 text-white' : 'bg-fpl-brand text-fpl-dark'
+          }`}
+        >
+          {isReplaced ? 'Did not play' : `${p.total_points_effective} pts`}
+        </p>
       </button>
     );
   };
 
-  return (
-    <div className="rounded-xl border border-fpl-border bg-[#0d2818] overflow-hidden">
-      {/* Vertical pitch: compact rows, each player in a card box */}
-      <div className="mx-auto max-w-md">
-        <div
-          className="relative rounded-lg border-2 border-[#2d5a3d] bg-gradient-to-b from-[#0d2818] to-[#163d24] py-3 px-3 sm:py-4 sm:px-4"
-          style={{ minHeight: '320px' }}
-        >
-          {/* Pitch outline + vertical centre line */}
-          <div className="absolute inset-3 sm:inset-4 rounded border-2 border-[#2d5a3d]/60 pointer-events-none" />
-          <div className="absolute left-1/2 top-0 bottom-0 w-0.5 bg-[#2d5a3d]/60 -translate-x-1/2 pointer-events-none" />
-          <div className="absolute left-1/2 top-1/2 w-12 h-12 sm:w-14 sm:h-14 rounded-full border-2 border-[#2d5a3d]/60 -translate-x-1/2 -translate-y-1/2 pointer-events-none" />
+  const rowClass = 'relative flex justify-center gap-1.5 sm:gap-3';
 
-          {/* FWD (top) */}
-          <div className="flex justify-center gap-1.5 sm:gap-2 mb-2">
-            {(fwdRow ?? []).map((p) => renderPlayerCard(p, {}))}
-          </div>
-          {/* MID */}
-          <div className="flex justify-center gap-1.5 sm:gap-2 mb-2">
-            {(midRow ?? []).map((p) => renderPlayerCard(p, {}))}
-          </div>
-          {/* DEF */}
-          <div className="flex justify-center gap-1.5 sm:gap-2 mb-2">
-            {(defRow ?? []).map((p) => renderPlayerCard(p, {}))}
-          </div>
-          {/* GKP (bottom) */}
-          <div className="flex justify-center gap-1.5 sm:gap-2">
-            {(gkRow ?? []).map((p) => renderPlayerCard(p, {}))}
-          </div>
-        </div>
+  return (
+    <div className="card overflow-hidden">
+      {/* Vertical pitch (attack at the top): mown stripes and pitch markings */}
+      <div
+        className="relative px-2 py-5 sm:px-6 sm:py-6 flex flex-col justify-between gap-4 sm:gap-5"
+        style={{
+          minHeight: 380,
+          backgroundColor: '#0f3b24',
+          backgroundImage:
+            'repeating-linear-gradient(180deg, rgba(255,255,255,0.035) 0 38px, transparent 38px 76px), radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.06), transparent 60%)',
+        }}
+      >
+        <div className="pointer-events-none absolute inset-3 sm:inset-4 rounded-sm border border-white/15" />
+        <div className="pointer-events-none absolute left-3 right-3 sm:left-4 sm:right-4 top-1/2 h-px bg-white/15" />
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/15" />
+        <div className="pointer-events-none absolute left-1/2 top-3 sm:top-4 h-12 w-2/5 -translate-x-1/2 border border-t-0 border-white/15" />
+        <div className="pointer-events-none absolute left-1/2 bottom-3 sm:bottom-4 h-12 w-2/5 -translate-x-1/2 border border-b-0 border-white/15" />
+
+        <div className={rowClass}>{(fwdRow ?? []).map((p) => renderPlayerCard(p, {}))}</div>
+        <div className={rowClass}>{(midRow ?? []).map((p) => renderPlayerCard(p, {}))}</div>
+        <div className={rowClass}>{(defRow ?? []).map((p) => renderPlayerCard(p, {}))}</div>
+        <div className={rowClass}>{(gkRow ?? []).map((p) => renderPlayerCard(p, {}))}</div>
       </div>
 
       {/* Bench: replaced starters (did not play) first, then unused bench players */}
       {bench.length > 0 && (
-        <div className="border-t border-fpl-border bg-fpl-card/80 px-3 py-3 sm:px-5 sm:py-4">
-          <div className="flex flex-wrap justify-center gap-2 sm:gap-3">
-            {bench.map((p, i) =>
-              renderPlayerCard(p, {
-                imageSize: 'w-12 h-14 sm:w-14 sm:h-[72px]',
-                nameClass: 'text-xs font-medium',
-                pointsClass: 'text-xs font-semibold',
-                maxNameWidth: 'max-w-[76px]',
-                isReplaced: i < replaced.length,
-              })
-            )}
+        <div className="border-t border-fpl-border bg-fpl-raised/50 px-3 pt-2.5 pb-4 sm:px-5">
+          <p className="eyebrow text-center mb-2.5">Bench</p>
+          <div className="flex flex-wrap justify-center gap-1.5 sm:gap-3">
+            {bench.map((p, i) => renderPlayerCard(p, { isReplaced: i < replaced.length }))}
           </div>
         </div>
       )}
@@ -213,6 +157,7 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
           element={selectedElement}
           teamName={selectedTeamName ?? ''}
           teams={bootstrap?.teams ?? []}
+          imageUrl={getPlayerImageUrl(selectedElement, selectedTeamName)}
           onClose={() => setSelectedElementId(null)}
         />
       )}

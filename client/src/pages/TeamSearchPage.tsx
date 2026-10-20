@@ -51,10 +51,10 @@ export default function TeamSearchPage() {
 
   if (redirecting) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center py-24">
-        <div className="rounded-xl border border-fpl-border bg-fpl-card p-8 text-center max-w-sm">
-          <div className="animate-pulse text-fpl-accent text-4xl mb-4">⋯</div>
-          <p className="text-slate-300 font-medium">Loading your team</p>
+      <div className="flex flex-1 flex-col items-center justify-center py-24 px-4">
+        <div className="card p-8 text-center max-w-sm w-full">
+          <div className="mx-auto mb-4 h-8 w-8 rounded-full border-2 border-fpl-brand border-t-transparent animate-spin" />
+          <p className="text-white font-semibold">Loading your team</p>
           <p className="text-slate-500 text-sm mt-1">Taking you to your dashboard…</p>
         </div>
       </div>
@@ -62,43 +62,46 @@ export default function TeamSearchPage() {
   }
 
   return (
-    <>
-      <div className="max-w-6xl mx-auto px-4 py-6">
-        <h2 className="text-xl font-semibold text-white mb-2">Add Your Team</h2>
-        <p className="text-slate-400 text-sm mb-4">
-          Search by <strong>Team/ Manager Name</strong> or <strong>Team ID</strong>, then choose your default league.
-        </p>
-        {loadingEntry ? (
-            <div className="mt-4 py-4 text-slate-400 text-sm">Loading team and leagues…</div>
-          ) : !showLeaguePicker ? (
-            <div className="mt-4">
-              <SearchBar
-                onSearch={handleTeamSelected}
-                isLoading={false}
-                defaultValue={null}
-              />
+    <main className="max-w-6xl mx-auto px-4 py-10 sm:py-14">
+      <div className="max-w-2xl mx-auto">
+        <div className="text-center mb-8">
+          <p className="eyebrow text-fpl-brand mb-3">Live Fantasy Premier League</p>
+          <h1 className="font-display text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            Your FPL team, live.
+          </h1>
+          <p className="text-slate-400 mt-3 sm:text-lg text-balance">
+            Live points with auto-subs, mini-league tables and player stats. No login needed.
+          </p>
+        </div>
+
+        <div className="card p-5 sm:p-6">
+          {loadingEntry ? (
+            <div className="py-6 flex items-center justify-center gap-3 text-slate-400 text-sm">
+              <span className="h-4 w-4 rounded-full border-2 border-fpl-brand border-t-transparent animate-spin" />
+              Loading team and leagues…
             </div>
+          ) : !showLeaguePicker ? (
+            <SearchBar onSearch={handleTeamSelected} isLoading={false} defaultValue={null} />
           ) : (
-            <div className="mt-4 space-y-4">
-              <div className="flex flex-wrap items-center gap-2 text-slate-300 text-sm">
-                <span>Team: <strong className="text-white">{entry?.name}</strong></span>
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  className="text-fpl-accent hover:underline"
-                >
-                  Change team
+            <div className="space-y-5">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl bg-fpl-raised/60 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="eyebrow">Team</p>
+                  <p className="text-white font-semibold truncate">{entry?.name}</p>
+                </div>
+                <button type="button" onClick={handleBack} className="text-sm text-fpl-brand hover:underline">
+                  Change
                 </button>
               </div>
               <div>
-                <label htmlFor="default-league" className="block text-slate-400 text-sm mb-1.5">
-                  Choose your default league
+                <label htmlFor="default-league" className="eyebrow block mb-1.5">
+                  Default league
                 </label>
                 <select
                   id="default-league"
                   value={selectedLeagueId ?? ''}
                   onChange={(e) => setSelectedLeagueId(Number(e.target.value) || null)}
-                  className="select-arrow-white w-full max-w-md px-3 py-2 rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent text-sm"
+                  className="select-arrow-white input"
                 >
                   {leagues.map((league) => (
                     <option key={league.id} value={league.id}>
@@ -106,26 +109,32 @@ export default function TeamSearchPage() {
                     </option>
                   ))}
                 </select>
-                <p className="text-slate-500 text-xs mt-1">
-                  This league will be selected when you open your dashboard.
+                <p className="text-slate-500 text-xs mt-1.5">
+                  This league opens first on your dashboard. You can switch any time.
                 </p>
               </div>
-              <button
-                type="button"
-                onClick={handleContinue}
-                className="px-6 py-2.5 rounded-lg bg-fpl-accent hover:bg-fpl-accent-hover text-white font-medium transition-colors"
-              >
+              <button type="button" onClick={handleContinue} className="btn-primary w-full py-2.5">
                 Continue to dashboard
               </button>
             </div>
           )}
-      </div>
-
-      {!showLeaguePicker && (
-        <div className="max-w-6xl mx-auto px-4 py-8 text-center text-slate-500">
-          <p>Search for your team above, then choose your default league to continue.</p>
         </div>
-      )}
-    </>
+
+        {!showLeaguePicker && (
+          <ul className="mt-8 grid gap-3 sm:grid-cols-3 text-sm">
+            {[
+              ['Live points', 'Auto-subs and captaincy applied as matches finish.'],
+              ['Mini-leagues', 'Live standings, chips and captains for every rival.'],
+              ['Stats & fixtures', 'Form, ownership, transfers and fixture difficulty.'],
+            ].map(([title, body]) => (
+              <li key={title} className="rounded-xl border border-fpl-border/70 bg-fpl-card/50 p-4">
+                <p className="font-semibold text-slate-100">{title}</p>
+                <p className="text-slate-500 mt-1">{body}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </main>
   );
 }

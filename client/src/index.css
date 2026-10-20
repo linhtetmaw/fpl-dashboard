@@ -3,40 +3,65 @@
 @tailwind utilities;
 
 :root {
-  --fpl-bg: #0f0a1a;
-  --fpl-card: #1a1425;
-  --fpl-accent: #0f4c9b;
-  --fpl-border: #2d2440;
-  --font-sans: 'Sora', system-ui, sans-serif;
-}
-
-/* Force accent button color (overrides any cached Tailwind) */
-.bg-fpl-accent {
-  background-color: #0f4c9b !important;
-}
-.hover\:bg-fpl-accent-hover:hover {
-  background-color: #0a3a6b !important;
-}
-.bg-fpl-accent\/80 {
-  background-color: rgba(15, 76, 155, 0.8) !important;
-}
-.bg-fpl-accent\/20 {
-  background-color: rgba(15, 76, 155, 0.2) !important;
-}
-.bg-fpl-accent\/10 {
-  background-color: rgba(15, 76, 155, 0.1) !important;
+  --fpl-bg: #13001a;
+  --fpl-card: #1c0524;
+  --fpl-border: #3a1842;
+  color-scheme: dark;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background: var(--fpl-bg);
-  color: #e2e8f0;
-  font-family: var(--font-sans);
+  background:
+    radial-gradient(1200px 420px at 50% -200px, rgba(107, 74, 112, 0.35), transparent 70%),
+    radial-gradient(600px 240px at 85% -120px, rgba(0, 255, 133, 0.07), transparent 70%),
+    var(--fpl-bg);
+  color: #e6dce8;
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
 }
 
 #root {
   min-height: 100vh;
+}
+
+@layer components {
+  /** Standard panel: every card on the site shares this surface. */
+  .card {
+    @apply rounded-2xl border border-fpl-border bg-fpl-card shadow-card;
+  }
+  /** Small uppercase label above a value or a group of controls. */
+  .eyebrow {
+    @apply text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500;
+  }
+  .section-title {
+    @apply font-display text-base sm:text-lg font-semibold text-white tracking-tight;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors
+      focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand/70 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-fpl-accent text-fpl-purple font-semibold hover:bg-fpl-accent-hover;
+  }
+  .btn-ghost {
+    @apply btn border border-fpl-border bg-fpl-raised/60 text-slate-300 hover:text-white hover:border-slate-600;
+  }
+  .input {
+    @apply w-full rounded-lg border border-fpl-border bg-fpl-raised px-3 py-2.5 text-sm text-slate-100 placeholder-slate-500
+      focus:outline-none focus:ring-2 focus:ring-fpl-brand/60 focus:border-transparent;
+  }
+  /** Segmented control: wrap buttons in .segmented and mark the active one with data-active="true". */
+  .segmented {
+    @apply inline-flex flex-wrap gap-1 rounded-lg border border-fpl-border bg-fpl-raised/70 p-1;
+  }
+  .segmented > button {
+    @apply rounded-md px-3 py-1.5 text-xs sm:text-sm font-medium text-slate-400 transition-colors hover:text-slate-200;
+  }
+  .segmented > button[data-active='true'] {
+    @apply bg-fpl-accent text-fpl-purple font-semibold shadow-sm;
+  }
 }
 
 /* Players News: visible scrollbar on desktop, same height as pitch */
@@ -56,7 +81,7 @@ body {
   border-radius: 4px;
 }
 .players-news-scroll::-webkit-scrollbar-thumb:hover {
-  background: #3d3550;
+  background: #4f3354;
 }
 
 /* League table: visible scrollbar, height matches pitch */
@@ -78,7 +103,7 @@ body {
   border-radius: 4px;
 }
 .league-table-scroll::-webkit-scrollbar-thumb:hover {
-  background: #3d3550;
+  background: #4f3354;
 }
 
 /* Player Stats: contained scroll on mobile so table doesn't push viewport */

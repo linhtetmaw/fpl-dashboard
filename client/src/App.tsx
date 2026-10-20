@@ -4,7 +4,10 @@ import { pageView } from './analytics';
 import AppLayout from './components/AppLayout';
 import Dashboard from './pages/Dashboard';
 import PlayerStatsPage from './pages/PlayerStatsPage';
+import PlayerNewsPage from './pages/PlayerNewsPage';
 import FixturesPage from './pages/FixturesPage';
+import SquadPlannerPage from './pages/SquadPlannerPage';
+import OpinionsPage from './pages/OpinionsPage';
 
 function App() {
   const location = useLocation();
@@ -23,7 +26,10 @@ function App() {
       <Route path="/" element={<AppLayout />}>
         <Route index element={<Dashboard />} />
         <Route path="player-stats" element={<PlayerStatsPage />} />
+        <Route path="player-news" element={<PlayerNewsPage />} />
         <Route path="fixtures" element={<FixturesPage />} />
+        <Route path="squad-planner" element={<SquadPlannerPage />} />
+        <Route path="opinions" element={<OpinionsPage />} />
       </Route>
     </Routes>
   );

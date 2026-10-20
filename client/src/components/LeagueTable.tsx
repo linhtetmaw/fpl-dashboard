@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import { useQuery, useQueries } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import type { BootstrapStatic } from '../types/fpl';
 import type { LeagueSortBy } from '../types/fpl';
-import { getLeagueStandingsWithChips, getLeagueStandings, getLeagueStandingsAllPages, getEntryHistory, getTeamPicks } from '../api/fpl';
+import { getLeagueStandingsWithChips, getLeagueStandings } from '../api/fpl';
 
 interface LeagueTableProps {
   leagueId: number;
@@ -13,6 +13,10 @@ interface LeagueTableProps {
   gameweek: number;
   /** Current user's chip this GW (used when standings-with-chips fails or for fallback). */
   currentUserChip?: string | null;
+  /** Current user's overall rank in this league (shown pinned when their row isn't loaded yet). */
+  userRank?: number | null;
+  /** Total teams in the league, if known. */
+  rankCount?: number | null;
 }
 
 interface RowData {
@@ -56,26 +60,37 @@ function getCurrentMonthGameweekIds(bootstrap: BootstrapStatic): number[] {
   return lastN.length > 0 ? lastN : events.slice(-4).map((e) => e.id);
 }
 
-export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, gameweek, currentUserChip }: LeagueTableProps) {
+export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, gameweek, currentUserChip, userRank, rankCount }: LeagueTableProps) {
   /** Default to Current GW so the top row is highest scorer in the selected gameweek, not overall. */
   const [sortBy, setSortBy] = useState<LeagueSortBy>('event_total');
 
-  const { data: standingsData, isLoading: standingsLoading } = useQuery({
-    queryKey: ['fpl', 'standings-with-chips', leagueId, 1, gameweek],
-    queryFn: async () => {
+  // Standings load 50 teams per page; big leagues (thousands of teams) load more only on request.
+  const {
+    data: standingsData,
+    isLoading: standingsLoading,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ['fpl', 'standings-with-chips', leagueId, gameweek],
+    initialPageParam: 1,
+    queryFn: async ({ pageParam }) => {
       try {
-        return await getLeagueStandingsWithChips(leagueId, 1, gameweek);
+        return await getLeagueStandingsWithChips(leagueId, pageParam, gameweek);
       } catch {
-        const allResults = await getLeagueStandingsAllPages(leagueId);
-        const first = await getLeagueStandings(leagueId, 1);
-        return { league: first.league, standings: { results: allResults, has_next: false } };
+        return await getLeagueStandings(leagueId, pageParam);
       }
     },
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.standings?.has_next ? allPages.length + 1 : undefined,
     enabled: leagueId > 0 && gameweek > 0,
   });
 
-  const results = standingsData?.standings?.results ?? [];
-  const entryIds = results.map((r) => r.entry);
+  const results = useMemo(
+    () => standingsData?.pages.flatMap((p) => p.standings?.results ?? []) ?? [],
+    [standingsData]
+  );
+  const userLoaded = results.some((r) => r.entry === teamId);
 
   /** Set of entry ids that have the highest event_total (current GW) in this league. */
   const gwWinnerEntries = useMemo(() => {
@@ -85,70 +100,35 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
     return winners;
   }, [results]);
 
-  const historyQueries = useQueries({
-    queries:
-      entryIds.length > 0
-        ? entryIds.slice(0, 50).map((entryId) => ({
-            queryKey: ['fpl', 'history', entryId],
-            queryFn: () => getEntryHistory(entryId),
-            staleTime: 60 * 1000,
-          }))
-        : [],
-  });
-
-  const picksQueries = useQueries({
-    queries:
-      entryIds.length > 0 && gameweek > 0
-        ? entryIds.slice(0, 50).map((entryId) => ({
-            queryKey: ['fpl', 'picks', entryId, gameweek],
-            queryFn: () => getTeamPicks(entryId, gameweek),
-            staleTime: 60 * 1000,
-          }))
-        : [],
-  });
-
+  // Captain, team value and per-GW points come with each row from the server (standings-with-chips), so the
+  // table needs no extra request per team.
   const captainByEntry = useMemo(() => {
     const map = new Map<number, string>();
     if (!bootstrap?.elements?.length) return map;
-    const elementById = new Map(bootstrap.elements.map((e) => [e.id, e.web_name ?? '']));
-    picksQueries.forEach((q, i) => {
-      const entryId = entryIds[i];
-      if (entryId == null) return;
-      const picks = q.data?.picks;
-      const captainPick = picks?.find((p) => p.is_captain);
-      const elementId = captainPick?.element;
-      if (elementId != null) {
-        const name = elementById.get(elementId);
-        if (name) map.set(entryId, name);
-      }
-    });
+    const nameById = new Map(bootstrap.elements.map((e) => [e.id, e.web_name ?? '']));
+    for (const r of results) {
+      const name = r.captain != null ? nameById.get(r.captain) : undefined;
+      if (name) map.set(r.entry, name);
+    }
     return map;
-  }, [bootstrap?.elements, entryIds, picksQueries]);
+  }, [bootstrap?.elements, results]);
 
   const monthlyByEntry = useMemo(() => {
     if (sortBy !== 'monthly' || !bootstrap) return new Map<number, number>();
-    const gwIds = getCurrentMonthGameweekIds(bootstrap);
+    const gwIds = new Set(getCurrentMonthGameweekIds(bootstrap));
     const map = new Map<number, number>();
-    entryIds.slice(0, 50).forEach((entryId, i) => {
-      const res = historyQueries[i]?.data;
-      if (!res?.current) return;
-      const sum = res.current
-        .filter((c) => gwIds.includes(c.event))
-        .reduce((acc, c) => acc + c.points, 0);
-      map.set(entryId, sum);
-    });
+    for (const r of results) {
+      if (!r.history) continue;
+      map.set(r.entry, r.history.reduce((acc, [event, points]) => acc + (gwIds.has(event) ? points : 0), 0));
+    }
     return map;
-  }, [sortBy, bootstrap, entryIds, historyQueries]);
+  }, [sortBy, bootstrap, results]);
 
   const valueByEntry = useMemo(() => {
     const map = new Map<number, number>();
-    entryIds.slice(0, 50).forEach((entryId, i) => {
-      const res = historyQueries[i]?.data;
-      const cur = res?.current?.find((c) => c.event === gameweek);
-      if (cur != null && typeof cur.value === 'number') map.set(entryId, cur.value);
-    });
+    for (const r of results) if (typeof r.value === 'number') map.set(r.entry, r.value);
     return map;
-  }, [gameweek, entryIds, historyQueries]);
+  }, [results]);
 
   const rows: RowData[] = useMemo(() => {
     const base: RowData[] = results.map((r) => ({
@@ -176,35 +156,84 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
     return base;
   }, [results, sortBy, monthlyByEntry, valueByEntry, teamId, currentUserChip]);
 
-  const isLoadingMonthly = sortBy === 'monthly' && historyQueries.some((q) => q.isLoading);
-  const isLoadingValue = sortBy === 'team_value' && historyQueries.some((q) => q.isLoading);
+
+  const renderRow = (row: RowData, position: number) => {
+    const move = (row.movement ?? '').toString().toLowerCase();
+    const moveNum = parseInt(row.movement as string, 10);
+    const isUp = move === 'up' || move === 'u' || (Number.isInteger(moveNum) && moveNum > 0);
+    const isDown = move === 'down' || move === 'd' || (Number.isInteger(moveNum) && moveNum < 0);
+    return (
+      <tr
+        key={row.entry}
+        onClick={() => onTeamClick?.(row.entry)}
+        className={`border-b border-fpl-border/60 transition-colors ${
+          row.isCurrentUser ? 'bg-fpl-brand/10 shadow-[inset_3px_0_0_0_#00FF85]' : ''
+        } ${onTeamClick ? 'cursor-pointer hover:bg-white/[0.03]' : ''}`}
+      >
+        <td className="px-3 py-2 text-slate-400 font-medium tabular-nums">
+          <span className="inline-flex items-center gap-0.5">
+            {position.toLocaleString()}
+            {isUp && <span className="text-emerald-400 text-[10px]" title="Rank up">▲</span>}
+            {isDown && <span className="text-red-400 text-[10px]" title="Rank down">▼</span>}
+          </span>
+        </td>
+        <td className="px-2 py-2 min-w-0">
+          <div className="flex flex-wrap items-center gap-1">
+            <span className="font-semibold text-slate-100 truncate block max-w-[140px] md:max-w-none md:overflow-visible md:whitespace-normal">
+              {row.entry_name}
+            </span>
+            {gwWinnerEntries.has(row.entry) && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-400/15 text-amber-300 ring-1 ring-inset ring-amber-400/40 shrink-0">
+                Winner
+              </span>
+            )}
+            {row.chip && (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold uppercase bg-fpl-brand/15 text-fpl-brand ring-1 ring-inset ring-fpl-brand/40 shrink-0">
+                {formatChipLabel(row.chip)}
+              </span>
+            )}
+          </div>
+          <div className="text-slate-500 text-[11px] mt-0.5 truncate max-w-[160px] md:max-w-none md:overflow-visible md:whitespace-normal">
+            {row.player_name}
+            {captainByEntry.get(row.entry) ? <> · <span className="text-slate-400">C: {captainByEntry.get(row.entry)}</span></> : null}
+          </div>
+        </td>
+        <td className="px-2 py-2 text-right font-display font-bold text-white tabular-nums">{row.points}</td>
+        <td className="px-3 py-2 text-right text-slate-400 tabular-nums">
+          {row.teamValue != null ? (row.teamValue / 10).toFixed(1) : '—'}
+        </td>
+      </tr>
+    );
+  };
 
   return (
-    <div className="rounded-xl border border-fpl-border bg-fpl-card overflow-hidden h-full flex flex-col min-h-0">
-      <div className="shrink-0 p-2 sm:p-3 border-b border-fpl-border flex flex-wrap items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-slate-400 text-xs">Sort by</span>
+    <div className="card overflow-hidden h-full flex flex-col min-h-0">
+      <div className="shrink-0 p-3 border-b border-fpl-border flex flex-wrap items-center justify-between gap-2">
+        <div className="segmented" role="group" aria-label="Sort standings by">
         {(['total', 'event_total', 'monthly', 'team_value'] as const).map((key) => (
           <button
             key={key}
+            type="button"
             onClick={() => setSortBy(key)}
-            className={`px-2 py-1 rounded text-xs font-medium transition-colors ${
-              sortBy === key
-                ? 'bg-fpl-accent text-white'
-                : 'bg-fpl-dark/60 text-slate-400 hover:text-slate-200'
-            }`}
+            data-active={sortBy === key}
+            aria-pressed={sortBy === key}
+            className="!text-xs !px-2.5"
           >
             {key === 'total' ? 'Overall' : key === 'event_total' ? 'Current GW' : key === 'monthly' ? 'Monthly' : 'Team value'}
           </button>
         ))}
         </div>
         {onTeamClick && (
-          <span className="text-slate-500 text-[10px]">Click a row to view that team</span>
+          <span className="text-slate-500 text-[11px]">Tap a row to view that team</span>
         )}
       </div>
 
       {standingsLoading && (
-        <div className="p-4 text-slate-400 text-center text-xs">Loading standings…</div>
+        <div className="p-3 space-y-2" aria-label="Loading standings">
+          {Array.from({ length: 8 }, (_, i) => (
+            <div key={i} className="h-10 rounded-lg bg-fpl-raised animate-pulse" />
+          ))}
+        </div>
       )}
 
       {!standingsLoading && rows.length === 0 && (
@@ -215,69 +244,43 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
         <div className="league-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto pb-2 md:pb-4">
           <table className="w-full text-xs">
             <thead>
-              <tr className="bg-fpl-dark/60 border-b border-fpl-border text-slate-400 text-left">
-                <th className="px-2 py-1.5 font-medium w-10">#</th>
-                <th className="px-2 py-1.5 font-medium">Team</th>
-                <th className="px-2 py-1.5 font-medium text-right w-14">Points</th>
-                <th className="px-2 py-1.5 font-medium text-right w-16">Team value</th>
+              <tr className="sticky top-0 z-10 bg-fpl-raised border-b border-fpl-border text-left">
+                <th className="eyebrow px-3 py-2.5 w-12">#</th>
+                <th className="eyebrow px-2 py-2.5">Team</th>
+                <th className="eyebrow px-2 py-2.5 text-right w-14">Pts</th>
+                <th className="eyebrow px-3 py-2.5 text-right w-16">Value</th>
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, idx) => {
-                const move = (row.movement ?? '').toString().toLowerCase();
-                const moveNum = parseInt(row.movement as string, 10);
-                const isUp = move === 'up' || move === 'u' || (Number.isInteger(moveNum) && moveNum > 0);
-                const isDown = move === 'down' || move === 'd' || (Number.isInteger(moveNum) && moveNum < 0);
-                return (
-                  <tr
-                    key={row.entry}
-                    onClick={() => onTeamClick?.(row.entry)}
-                    className={`border-b border-fpl-border/70 ${
-                      row.isCurrentUser ? 'bg-fpl-accent/20' : idx % 2 === 1 ? 'bg-fpl-dark/20' : ''
-                    } ${onTeamClick ? 'cursor-pointer hover:bg-fpl-accent/10' : ''}`}
-                  >
-                    <td className="px-2 py-1 text-slate-400 font-medium">
-                      <span className="inline-flex items-center gap-0.5">
-                        {idx + 1}
-                        {isUp && <span className="text-emerald-400 text-[10px]" title="Rank up">▲</span>}
-                        {isDown && <span className="text-red-400 text-[10px]" title="Rank down">▼</span>}
-                      </span>
-                    </td>
-                    <td className="px-2 py-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-1">
-                        <span className="font-medium text-slate-200 truncate block max-w-[140px] md:max-w-none md:overflow-visible md:whitespace-normal">
-                          {row.entry_name} ({row.player_name})
-                        </span>
-                        {gwWinnerEntries.has(row.entry) && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-orange-500/30 text-orange-200 border border-orange-500/50 shrink-0">
-                            Winner
-                          </span>
-                        )}
-                        {row.chip && (
-                          <span className="inline-flex items-center px-1 py-0.5 rounded text-[9px] font-medium uppercase bg-fpl-accent/30 text-fpl-accent border border-fpl-accent/50 shrink-0">
-                            {formatChipLabel(row.chip)}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-slate-500 text-[10px] mt-0.5 truncate max-w-[160px] md:max-w-none md:overflow-visible md:whitespace-normal">
-                        {captainByEntry.get(row.entry) ? `C: ${captainByEntry.get(row.entry)}` : '—'}
-                      </div>
-                    </td>
-                    <td className="px-2 py-1 text-right font-medium text-white tabular-nums">{row.points}</td>
-                    <td className="px-2 py-1 text-right text-slate-300 tabular-nums">
-                      {row.teamValue != null ? (row.teamValue / 10).toFixed(1) : '—'}
-                    </td>
-                  </tr>
-                );
-              })}
+              {rows.map((row, idx) => renderRow(row, idx + 1))}
             </tbody>
           </table>
-        </div>
-      )}
-
-      {(isLoadingMonthly || isLoadingValue) && (
-        <div className="p-2 text-center text-slate-500 text-xs">
-          {isLoadingMonthly ? 'Loading monthly points…' : 'Loading team values…'}
+          {!userLoaded && userRank != null && (
+            <button
+              type="button"
+              onClick={() => onTeamClick?.(teamId)}
+              className="w-full flex items-center justify-between px-3 py-2 text-xs bg-fpl-brand/10 shadow-[inset_3px_0_0_0_#00FF85] border-b border-fpl-border/60"
+            >
+              <span className="text-slate-300">Your team</span>
+              <span className="font-display font-bold text-white tabular-nums">#{userRank.toLocaleString()}</span>
+            </button>
+          )}
+          <div className="px-3 pt-3 flex flex-col items-center gap-2 text-slate-500 text-[11px]">
+            <span>
+              Showing top {results.length.toLocaleString()}
+              {rankCount != null && rankCount > results.length ? ` of ${rankCount.toLocaleString()}` : ''} teams
+            </span>
+            {hasNextPage && (
+              <button
+                type="button"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+                className="px-3 py-1.5 rounded-lg border border-fpl-border text-slate-200 hover:bg-white/[0.04] disabled:opacity-60"
+              >
+                {isFetchingNextPage ? 'Loading…' : 'Load 50 more'}
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import type { TeamPointsSummary } from '../types/fpl';
 import type { FplEvent } from '../types/fpl';
 
@@ -50,37 +51,53 @@ export default function TeamSummary({
   showShLeagueBadge = false,
 }: TeamSummaryProps) {
   const isShHost = SH_HOST_TEAM_IDS.has(teamId);
+  const initials = teamName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((w) => w[0]?.toUpperCase())
+    .join('');
   return (
-    <section className="rounded-xl bg-fpl-card border border-fpl-border p-4 sm:p-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-        <div>
-          <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
-            <h2 className="text-lg sm:text-xl font-semibold text-white">{teamName}</h2>
-            {showShLeagueBadge && (
-              <span
-                className="inline-flex items-center rounded px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-semibold bg-[#f37025]/20 text-[#f37025] border border-[#f37025]/50"
-                title="Member of SH League (699005)"
-              >
-                SH League
-              </span>
-            )}
-            {isShHost && (
-              <span
-                className="inline-flex items-center rounded px-1.5 sm:px-2 py-0.5 text-[10px] sm:text-xs font-semibold bg-blue-500/20 text-blue-300 border border-blue-500/50"
-                title="SH Host"
-              >
-                SH Host
-              </span>
-            )}
+    <section className="card p-4 sm:p-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="hidden sm:flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-fpl-brand font-display text-lg font-bold text-fpl-purple">
+            {initials || 'FH'}
           </div>
-          <p className="text-slate-400 text-xs sm:text-sm mt-0.5">{managerName} · ID {teamId}</p>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight text-white truncate">{teamName}</h2>
+              {showShLeagueBadge && (
+                <span
+                  className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-semibold bg-fpl-brand/15 text-fpl-brand ring-1 ring-inset ring-fpl-brand/40"
+                  title="Member of SH League (699005)"
+                >
+                  SH League
+                </span>
+              )}
+              {isShHost && (
+                <span
+                  className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] sm:text-xs font-semibold bg-sky-500/15 text-sky-300 ring-1 ring-inset ring-sky-500/40"
+                  title="SH Host"
+                >
+                  SH Host
+                </span>
+              )}
+            </div>
+            <p className="text-slate-400 text-sm mt-0.5">
+              {managerName} <span className="text-slate-600">·</span> <span className="tabular-nums">ID {teamId}</span>
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-2">
+          <label htmlFor="gw-select" className="sr-only">
+            Gameweek
+          </label>
           <select
             id="gw-select"
             value={gameweek}
             onChange={(e) => onGameweekChange(Number(e.target.value))}
-            className="select-arrow-white px-2.5 sm:px-3 py-1.5 sm:py-2 text-sm rounded-lg bg-fpl-dark border border-fpl-border text-slate-200 focus:outline-none focus:ring-2 focus:ring-fpl-accent"
+            className="select-arrow-white input py-2 w-auto font-medium"
           >
             {events.map((ev) => (
               <option key={ev.id} value={ev.id}>
@@ -92,39 +109,57 @@ export default function TeamSummary({
       </div>
 
       {isLoading && (
-        <div className="mt-4 sm:mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+        <div className="mt-5 sm:mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
           {[1, 2, 3, 4].map((i) => (
-            <div key={i} className="h-12 sm:h-16 rounded-lg bg-fpl-dark/60 animate-pulse" />
+            <div key={i} className="h-[84px] rounded-xl bg-fpl-raised animate-pulse" />
           ))}
         </div>
       )}
 
       {!isLoading && summary && (
-        <>
-          <div className="mt-4 sm:mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-            <div className="rounded-lg bg-fpl-dark/60 p-3 sm:p-4">
-              <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-wide">GW Net Total</p>
-              <p className="text-xl sm:text-2xl font-bold text-white mt-0.5 sm:mt-1">{gwNetTotal ?? summary.starting_points}</p>
-            </div>
-            <div className="rounded-lg bg-fpl-dark/60 p-3 sm:p-4">
-              <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-wide">Transfers</p>
-              <p className="text-xl sm:text-2xl font-bold text-white mt-0.5 sm:mt-1 tabular-nums">
-                {transfersCost == null ? '—' : transfersCost > 0 ? `-${transfersCost}` : '0'}
-              </p>
-            </div>
-            <div className="rounded-lg bg-fpl-dark/60 p-3 sm:p-4">
-              <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-wide">Chip</p>
-              <p className="text-base sm:text-lg font-medium text-slate-200 mt-0.5 sm:mt-1">{formatChip(summary.chip)}</p>
-            </div>
-            <div className="rounded-lg bg-fpl-dark/60 p-3 sm:p-4">
-              <p className="text-slate-400 text-[10px] sm:text-xs uppercase tracking-wide">Team Value</p>
-              <p className="text-xl sm:text-2xl font-bold text-white mt-0.5 sm:mt-1">
-                {teamValue != null ? (teamValue / 10).toFixed(1) : '—'}
-              </p>
-            </div>
+        <div className="mt-5 sm:mt-6 grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="rounded-xl p-3.5 sm:p-4 bg-gradient-to-br from-fpl-brand/20 to-fpl-brand/5 ring-1 ring-inset ring-fpl-brand/30">
+            <p className="eyebrow text-fpl-brand/90">GW points</p>
+            <p className="font-display text-3xl sm:text-4xl font-bold text-white mt-1 tabular-nums">
+              {gwNetTotal ?? summary.starting_points}
+            </p>
           </div>
-        </>
+          <StatTile label="Transfer hits">
+            <span className={transfersCost != null && transfersCost > 0 ? 'text-rose-400' : ''}>
+              {transfersCost == null ? '—' : transfersCost > 0 ? `-${transfersCost}` : '0'}
+            </span>
+          </StatTile>
+          <StatTile label="Chip">
+            {summary.chip ? (
+              <span className="inline-flex items-center rounded-md bg-fpl-brand/15 px-2 py-0.5 text-lg sm:text-xl text-fpl-brand ring-1 ring-inset ring-fpl-brand/30">
+                {formatChip(summary.chip)}
+              </span>
+            ) : (
+              <span className="text-slate-500">None</span>
+            )}
+          </StatTile>
+          <StatTile label="Team value">
+            {teamValue != null ? (
+              <>
+                <span className="text-slate-500 text-lg mr-0.5">£</span>
+                {(teamValue / 10).toFixed(1)}
+                <span className="text-slate-500 text-lg">m</span>
+              </>
+            ) : (
+              '—'
+            )}
+          </StatTile>
+        </div>
       )}
     </section>
+  );
+}
+
+function StatTile({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="rounded-xl bg-fpl-raised/70 p-3.5 sm:p-4 ring-1 ring-inset ring-white/[0.03]">
+      <p className="eyebrow">{label}</p>
+      <p className="font-display text-2xl sm:text-[28px] font-bold text-white mt-1.5 tabular-nums leading-tight">{children}</p>
+    </div>
   );
 }
