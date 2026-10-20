@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Outlet, NavLink, Link, useSearchParams } from 'react-router-dom';
+import { Outlet, NavLink, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import { useBootstrapStatic } from '../hooks/useFplApi';
 import { ClockIcon, LogoMark, RefreshIcon, SwapIcon } from './icons';
@@ -86,6 +86,7 @@ function DeadlineChip({ className = '' }: { className?: string }) {
 }
 
 export default function AppLayout() {
+  const location = useLocation();
   const [, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const hasTeam = hasStoredTeam();
@@ -186,7 +187,8 @@ export default function AppLayout() {
         </div>
       </div>
 
-      <div className="flex-1 min-h-0">
+      {/* Keyed by path so only switching sections replays the fade (not ?gw= / ?team= changes). */}
+      <div key={location.pathname} className="page-enter flex-1 min-h-0">
         <Outlet />
       </div>
 
