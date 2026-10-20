@@ -10,7 +10,7 @@ import { startFplNews, getFplNews } from './fpl-news.js';
 import { startSquads, registerSquadRoutes } from './squads.js';
 import { registerAuthRoutes } from './auth.js';
 import { fplGet, memo, cacheKey, cacheStats, FplError } from './fpl-api.js';
-import { redirects, securityHeaders, rateLimit } from './security.js';
+import { redirects, securityHeaders, rateLimit, clientIp } from './security.js';
 
 // Log instead of silently dying on a stray async error.
 process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));
@@ -791,7 +791,8 @@ app.get('/api/fpl-news', (req, res) => {
 /** Cache hit rates and memory use, for checking the FPL cache is doing its job. */
 app.get('/api/health', (req, res) => {
   res.set('Cache-Control', 'no-store');
-  res.json({ ok: true, uptime_s: Math.round(process.uptime()), fpl_cache: cacheStats() });
+  // your_ip shows which address rate limits count against (should be the caller's public IP, not a Railway proxy).
+  res.json({ ok: true, uptime_s: Math.round(process.uptime()), your_ip: clientIp(req), fpl_cache: cacheStats() });
 });
 
 /** FPL endpoints the client uses; anything else is refused so the proxy can't be used to crawl FPL through us. */

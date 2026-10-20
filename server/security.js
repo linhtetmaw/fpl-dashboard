@@ -36,6 +36,16 @@ export function securityHeaders(req, res, next) {
 }
 
 /**
+ * The visitor's IP. Railway's edge sets X-Real-IP to the real client address (it overwrites any value the client
+ * sends); req.ip alone can be one of Railway's own proxies, which would make every request look like a new visitor.
+ */
+export function clientIp(req) {
+  const real = String(req.get('x-real-ip') ?? '').trim();
+  if (/^[0-9a-f.:]{3,45}$/i.test(real)) return real;
+  return req.ip ?? 'unknown';
+}
+
+/**
  * Fixed-window per-IP rate limiter kept in memory (fine for a single instance).
  * Returns Express middleware allowing `limit` requests per `windowMs` per IP for the routes it's mounted on.
  */
@@ -48,7 +58,7 @@ export function rateLimit({ limit, windowMs = 60 * 1000, name = 'api' }) {
 
   return (req, res, next) => {
     const now = Date.now();
-    const ip = req.ip ?? 'unknown';
+    const ip = clientIp(req);
     let w = hits.get(ip);
     if (!w || w.reset <= now) {
       w = { count: 0, reset: now + windowMs };
