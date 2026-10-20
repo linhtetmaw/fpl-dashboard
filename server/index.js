@@ -155,12 +155,19 @@ app.use(compression());
 app.use(express.json({ limit: '20kb' }));
 // No CORS headers: the site and its API share one origin, so other websites can't use our API (and our FPL quota) from their visitors' browsers.
 
-/** Per-IP rate limits (per minute). A page load makes ~10–40 API calls; photos are the bulk. */
-app.use('/api', rateLimit({ limit: 300, name: 'api' }));
-app.use('/api/leagues-classic/:id/standings-with-chips', rateLimit({ limit: 40, name: 'league-table' }));
-app.use('/api/search-by-league', rateLimit({ limit: 20, name: 'search-by-league' }));
-app.use('/api/auth/telegram', rateLimit({ limit: 10, name: 'login' }));
-app.use('/api/squads', rateLimit({ limit: 60, name: 'squads' }));
+/**
+ * Per-IP rate limits (per minute). Generous on purpose: Myanmar mobile networks and office/campus WiFi put many
+ * people behind one shared IP (CGNAT), so one "IP" can be dozens of real users. Photos are counted separately
+ * because a single page can load 20–40 of them.
+ */
+const isImage = (req) => /^\/(player-photo|photo\/|badge\/)/.test(req.path);
+const apiLimit = rateLimit({ limit: 1500, name: 'api' });
+const imageLimit = rateLimit({ limit: 3000, name: 'images' });
+app.use('/api', (req, res, next) => (isImage(req) ? imageLimit : apiLimit)(req, res, next));
+app.use('/api/leagues-classic/:id/standings-with-chips', rateLimit({ limit: 150, name: 'league-table' }));
+app.use('/api/search-by-league', rateLimit({ limit: 60, name: 'search-by-league' }));
+app.use('/api/auth/telegram', rateLimit({ limit: 30, name: 'login' }));
+app.use('/api/squads', rateLimit({ limit: 120, name: 'squads' }));
 
 /** Proxy player photos; short cache so images stay current. */
 app.get('/api/photo/:code', async (req, res) => {

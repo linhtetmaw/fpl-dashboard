@@ -82,7 +82,10 @@ export function ttlFor(path) {
   }
   if ((m = path.match(/^\/fixtures\/\?event=(\d+)$/))) return eventInfo(Number(m[1]))?.finished ? HOUR : 2 * MIN;
   if (path.startsWith('/fixtures/')) return 2 * MIN;
-  if (/^\/entry\/\d+\/(history\/)?$/.test(path)) return 5 * MIN;
+  // History is used for transfer hits, team value and past GW points, none of which move during a live
+  // gameweek (live points come from /event/N/live/), so it can be cached for longer.
+  if (/^\/entry\/\d+\/history\/$/.test(path)) return 30 * MIN;
+  if (/^\/entry\/\d+\/$/.test(path)) return 5 * MIN;
   if (path.startsWith('/leagues-classic/')) return 2 * MIN;
   if (path.startsWith('/element-summary/')) return 10 * MIN;
   return MIN;
