@@ -4,7 +4,8 @@ import fs from 'fs';
 import { fileURLToPath } from 'url';
 import compression from 'compression';
 import fetch from 'node-fetch';
-import { loadIndex, addToIndex, searchIndex, getIndexSize } from './search-index.js';
+import { loadIndex, addToIndex, addStandingsRows, searchIndex, getIndexSize, saveNow as saveSearchIndex } from './search-index.js';
+import { startTeamCrawler } from './team-crawler.js';
 import { loadLeagueIndex, addLeagueToIndex, searchLeaguesByName } from './league-index.js';
 import { startFplNews, getFplNews } from './fpl-news.js';
 import { startSquads, registerSquadRoutes } from './squads.js';
@@ -126,18 +127,14 @@ loadLeagueIndex();
 startFplNews();
 startSquads();
 
-// On production (e.g. Railway free tier with no shell): if index is empty, seed ASEAN leagues in background so team name search works.
-if (getIndexSize() === 0) {
-  import('./seed-search-index.js')
-    .then(({ seedAseanLeagues }) => seedAseanLeagues())
-    .then((count) => {
-      loadIndex();
-      console.log('Search index seeded with', count, 'teams (ASEAN). Team name search is ready.');
-    })
-    .catch((err) => {
-      console.error('Startup seed failed (team name search may be limited):', err.message);
-    });
-}
+// Team name search: weekly crawl of the Myanmar country league (plus every team people look up).
+startTeamCrawler();
+
+// Railway stops the old server with SIGTERM on each deploy: write any pending search-index changes first.
+process.on('SIGTERM', () => {
+  saveSearchIndex();
+  process.exit(0);
+});
 
 badgeUrlCache.clear();
 loadTeamIdToName().then(() => {
@@ -407,9 +404,9 @@ app.get('/api/player-photo', async (req, res) => {
 
 /** Search by team name and optional manager name (server-side index). */
 app.get('/api/search', (req, res) => {
-  const team = req.query.team ?? '';
-  const manager = req.query.manager ?? '';
-  if (!String(team).trim()) {
+  const team = String(req.query.team ?? '').slice(0, 60);
+  const manager = String(req.query.manager ?? '').slice(0, 60);
+  if (!team.trim() && !manager.trim()) {
     return res.json({ results: [], count: 0 });
   }
   const results = searchIndex(team, manager);
@@ -445,6 +442,7 @@ app.get(['/api/leagues-classic/:id/standings/', '/api/leagues-classic/:id/standi
     if (data.league?.id != null && data.league?.name) {
       addLeagueToIndex(data.league.id, data.league.name);
     }
+    addStandingsRows(data.standings?.results);
     res.json(data);
   } catch (err) {
     sendFplError(res, err, 'Standings proxy error');
@@ -582,6 +580,8 @@ async function buildLeagueTablePage(id, page, gw) {
     addLeagueToIndex(pageData.league.id, pageData.league.name);
   }
   const standings = pageData.standings?.results ?? [];
+  // Every team shown in a league table becomes findable by name.
+  addStandingsRows(standings);
   const data = {
     league: pageData.league ?? { id: Number(id), name: `League ${id}` },
     standings: { results: [], has_next: (pageData.standings?.has_next ?? false) && standings.length > 0 },

@@ -168,27 +168,16 @@ Use the exact target shown in Railway’s Custom Domain settings.
 
 ---
 
-## Step 9: Seed search index (ASEAN team name search)
+## Step 9: Team name search (automatic)
 
-So users can search by **team name / manager name** in production:
+Nothing to run. The server crawls the **Myanmar FPL country league** (league 167, ~13k managers) about 30 seconds after its first start and then **once a week**, saving the index to `search-index.json` in `DATA_DIR` (the `/data` volume), so it survives deploys. At the start of a new FPL season the index is wiped and rebuilt, because every team gets a new ID. Any other team people look up, or see in a league table, is added as well.
 
-1. **Option A – Run seed on Railway (recommended)**  
-   - In Railway, open your service → **Settings** or use **Run Command** / **Shell** if available.  
-   - Run the seed once (from repo root):  
-     `cd server && node seed-search-index.js asean`  
-   - This fetches all teams from Cambodia, Malaysia, Myanmar, Singapore, Thailand, Vietnam and writes `server/data/search-index.json`.  
-   - Restart the service (or trigger a redeploy) so the server loads the new index.  
-   - **Note:** Railway’s filesystem is often ephemeral. If the index disappears after a redeploy, run the seed again after each deploy, or use a **persistent volume** for `server/data/` (if Railway supports it) and run the seed once.
-
-2. **Option B – Reload without restart**  
-   After seeding, if the server is already running, call:  
-   `POST https://your-app.up.railway.app/api/search/reload`  
-   so the server picks up the new index without a full restart.
+A crawl is ~260 FPL requests and takes 2–3 minutes. The logs show `Search index: crawled Myanmar league, N teams …` when it finishes.
 
 ---
 
 ## Notes
 
 - **Single service:** One Railway service runs the Node server. It serves the built React app from `client/dist` and handles `/api` for FPL and images.
-- **Search index:** Team name search uses `server/data/search-index.json`. The file is not in Git (`server/data/` is gitignored). Seed in production (Step 9) so ASEAN users can search by team/manager name.
+- **Search index:** Team name search uses `search-index.json` in `DATA_DIR` (filled automatically, see Step 9). The file is not in Git.
 - **Restarts:** Each deploy rebuilds the app and restarts the server; in-memory caches (e.g. player photos) reset.

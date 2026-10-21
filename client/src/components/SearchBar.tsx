@@ -1,10 +1,14 @@
-import { useState, FormEvent } from 'react';
+import { useEffect, useRef, useState, FormEvent } from 'react';
 import { searchTeams, searchByLeagueAndTeam } from '../api/fpl';
 import type { StandingEntry } from '../types/fpl';
 import { SearchIcon } from './icons';
 
-/** Search result: from index (no league info) or from search-by-league (with league_id/league_name). */
-type SearchResult = StandingEntry & { league_id?: number; league_name?: string };
+/** Search result: from the server index (with Myanmar league rank when known) or from search-by-league (with league info). */
+type SearchResult = StandingEntry & { league_id?: number; league_name?: string; mm_rank?: number | null };
+
+/** Suggestions appear after this many characters, this long after the last keystroke. */
+const SUGGEST_MIN_CHARS = 2;
+const SUGGEST_DELAY_MS = 250;
 
 interface SearchBarProps {
   onSearch: (teamId: number) => void;
@@ -25,6 +29,28 @@ export default function SearchBar({
   const [searchResults, setSearchResults] = useState<SearchResult[] | null>(null);
   const [searching, setSearching] = useState(false);
   const [teamIdImgError, setTeamIdImgError] = useState(false);
+  /** Only the latest request may update the results (typing fast fires several). */
+  const requestSeq = useRef(0);
+
+  // Suggestions while typing, from the server's index (instant; no FPL calls).
+  useEffect(() => {
+    if (mode !== 'league') return;
+    const team = teamName.trim();
+    if (team.length < SUGGEST_MIN_CHARS) {
+      setSearchResults(null);
+      return;
+    }
+    const seq = ++requestSeq.current;
+    const timer = setTimeout(async () => {
+      try {
+        const matches = await searchTeams(team, managerName.trim() || undefined);
+        if (seq === requestSeq.current) setSearchResults(matches);
+      } catch {
+        // Ignore: pressing "Find my team" shows the error.
+      }
+    }, SUGGEST_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [teamName, managerName, mode]);
 
   const handleSubmitId = (e: FormEvent) => {
     e.preventDefault();
@@ -53,17 +79,19 @@ export default function SearchBar({
       return;
     }
     setSearching(true);
+    const seq = ++requestSeq.current;
     try {
-      // Option C: try index first (instant if seeded), then fall back to live search-by-league
+      // Index first (Myanmar league + teams seen on the site), then a live search of the default leagues.
       let matches: SearchResult[] = await searchTeams(team, managerName.trim() || undefined);
       if (matches.length === 0) {
         matches = await searchByLeagueAndTeam(team, {
           managerName: managerName.trim() || undefined,
         });
       }
+      if (seq !== requestSeq.current) return;
       setSearchResults(matches);
       if (matches.length === 0) {
-        setError('No teams found. Check team/ manager name or search by team ID.');
+        setError('No teams found. Try fewer words, the manager name, or search by Team ID.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Search failed');
@@ -114,11 +142,12 @@ export default function SearchBar({
           <form onSubmit={handleSubmitLeague} className="space-y-3">
             <div className="flex flex-col sm:flex-row gap-3 flex-wrap">
               <div className="flex-1 min-w-[160px]">
-                <label htmlFor="search-team" className="eyebrow block mb-1.5">Team name</label>
+                <label htmlFor="search-team" className="eyebrow block mb-1.5">Team or manager name</label>
                 <input
                   id="search-team"
-                  type="text"
-                  placeholder="e.g. My FPL Team"
+                  type="search"
+                  autoComplete="off"
+                  placeholder="e.g. Ko's Team or Aung Aung"
                   value={teamName}
                   onChange={(e) => {
                     setTeamName(e.target.value);
@@ -129,11 +158,12 @@ export default function SearchBar({
                 />
               </div>
               <div className="flex-1 min-w-[160px]">
-                <label htmlFor="search-manager" className="eyebrow block mb-1.5">Manager name <span className="normal-case tracking-normal font-normal">(optional)</span></label>
+                <label htmlFor="search-manager" className="eyebrow block mb-1.5">Manager name <span className="normal-case tracking-normal font-normal">(optional, to narrow down)</span></label>
                 <input
                   id="search-manager"
                   type="text"
-                  placeholder="e.g. John Smith"
+                  autoComplete="off"
+                  placeholder="e.g. Aung Aung"
                   value={managerName}
                   onChange={(e) => {
                     setManagerName(e.target.value);
@@ -158,7 +188,7 @@ export default function SearchBar({
           {searchResults !== null && searchResults.length > 0 && (
             <div className="rounded-xl border border-fpl-border bg-fpl-raised/50 overflow-hidden">
               <p className="eyebrow px-3 py-2.5 border-b border-fpl-border">
-                {searchResults.length} team{searchResults.length !== 1 ? 's' : ''} found — click to view
+                {searchResults.length >= 30 ? 'Top 30 matches' : `${searchResults.length} team${searchResults.length !== 1 ? 's' : ''} found`} — tap to view
               </p>
               <ul className="max-h-64 overflow-y-auto">
                 {searchResults.map((r) => (
@@ -171,6 +201,7 @@ export default function SearchBar({
                       <span className="text-slate-200 font-medium truncate">{r.entry_name}</span>
                       <span className="text-slate-500 text-xs shrink-0">
                         {r.player_name}
+                        {r.mm_rank != null ? ` · Myanmar #${r.mm_rank.toLocaleString()}` : ''}
                         {r.league_name != null && r.league_name ? ` · ${r.league_name}` : ''}
                       </span>
                     </button>
