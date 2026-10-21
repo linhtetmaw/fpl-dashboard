@@ -48,6 +48,11 @@
         "--strictPort"
       ],
       "port": 5180
+    },
+    {
+      "name": "client-running",
+      "url": "http://localhost:5173",
+      "port": 5173
     }
   ]
 }
