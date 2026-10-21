@@ -142,31 +142,50 @@ function ArrowIcon({ direction, className = 'h-3.5 w-3.5' }: { direction: Direct
 /* Top captained                                                       */
 /* ------------------------------------------------------------------ */
 
-function CaptainTile({ label, sublabel, player }: { label: string; sublabel: string | null; player: PlayerSummary | null }) {
+function CaptainTile({
+  label,
+  shortLabel,
+  sublabel,
+  player,
+}: {
+  label: string;
+  /** Shown on phones, where two tiles share one row. */
+  shortLabel: string;
+  sublabel: string | null;
+  player: PlayerSummary | null;
+}) {
+  const shortSub = sublabel?.replace(/^Gameweek\s*/i, 'GW');
   return (
-    <div className="flex items-center gap-3 sm:gap-4 rounded-xl border border-fpl-border bg-fpl-raised/50 p-3 sm:p-4 min-w-0">
+    <div className="flex items-center gap-2 sm:gap-4 rounded-lg sm:rounded-xl border border-fpl-border bg-fpl-raised/50 p-2 sm:p-4 min-w-0">
       {player ? (
-        <div className="relative">
-          <PlayerPhoto url={player.photoUrl} name={player.name} className="h-12 w-12 sm:h-14 sm:w-14" />
-          <span className="absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-fpl-brand font-display text-[10px] font-bold text-fpl-dark ring-2 ring-fpl-card">
+        <div className="relative shrink-0">
+          <PlayerPhoto url={player.photoUrl} name={player.name} className="h-9 w-9 sm:h-14 sm:w-14" />
+          <span className="absolute -bottom-1 -right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-fpl-brand font-display text-[9px] sm:text-[10px] font-bold text-fpl-dark ring-2 ring-fpl-card">
             C
           </span>
         </div>
       ) : (
-        <div className="h-12 w-12 sm:h-14 sm:w-14 shrink-0 rounded-full bg-fpl-raised ring-1 ring-fpl-border" />
+        <div className="h-9 w-9 sm:h-14 sm:w-14 shrink-0 rounded-full bg-fpl-raised ring-1 ring-fpl-border" />
       )}
       <div className="min-w-0">
-        <p className="eyebrow truncate">
-          {label}
-          {sublabel && <span className="text-slate-600"> · {sublabel}</span>}
+        <p className="eyebrow !text-[9px] sm:!text-[11px] truncate">
+          <span className="sm:hidden">{shortLabel}</span>
+          <span className="hidden sm:inline">{label}</span>
+          {sublabel && (
+            <span className="text-slate-600">
+              {' · '}
+              <span className="sm:hidden">{shortSub}</span>
+              <span className="hidden sm:inline">{sublabel}</span>
+            </span>
+          )}
         </p>
         {player ? (
           <>
-            <p className="font-display text-base sm:text-lg font-semibold text-white truncate mt-0.5">{player.name}</p>
-            <p className="text-xs text-slate-400 truncate">{player.teamName}</p>
+            <p className="font-display text-sm sm:text-lg font-semibold text-white truncate sm:mt-0.5 leading-tight">{player.name}</p>
+            <p className="text-[11px] sm:text-xs text-slate-400 truncate">{player.teamName}</p>
           </>
         ) : (
-          <p className="text-sm text-slate-500 mt-1">Not available yet</p>
+          <p className="text-xs sm:text-sm text-slate-500 mt-1">Not available yet</p>
         )}
       </div>
     </div>
@@ -927,9 +946,9 @@ export default function PlayerStatsPage() {
 
       <section className="card p-4 sm:p-5">
         <h3 className="section-title mb-3">Most captained</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <CaptainTile label="This gameweek" sublabel={currentGw?.name ?? null} player={currentCaptain} />
-          <CaptainTile label="Last gameweek" sublabel={previousGw?.name ?? null} player={previousCaptain} />
+        <div className="grid grid-cols-2 gap-2 sm:gap-3">
+          <CaptainTile label="This gameweek" shortLabel="This GW" sublabel={currentGw?.name ?? null} player={currentCaptain} />
+          <CaptainTile label="Last gameweek" shortLabel="Last GW" sublabel={previousGw?.name ?? null} player={previousCaptain} />
         </div>
       </section>
 
