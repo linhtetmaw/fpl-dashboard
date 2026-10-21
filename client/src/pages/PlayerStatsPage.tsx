@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useBootstrapStatic, getCurrentEvent } from '../hooks/useFplApi';
 import type { FplElement, FplEvent, FplTeam } from '../types/fpl';
 
@@ -1090,10 +1090,104 @@ function PricesCard({
 /* Page                                                                */
 /* ------------------------------------------------------------------ */
 
+/* ------------------------------------------------------------------ */
+/* Section shortcuts                                                   */
+/* ------------------------------------------------------------------ */
+
+const SECTIONS = [
+  { id: 'captains', label: 'Captains' },
+  { id: 'leaders', label: 'Stat leaders' },
+  { id: 'transfers', label: 'Transfers' },
+  { id: 'prices', label: 'Prices' },
+  { id: 'players', label: 'All players' },
+] as const;
+
+/**
+ * Sticky row of shortcuts under the site header. Tapping one scrolls to that section; the tab for the section
+ * being read is highlighted as the page scrolls. Returns the scroll offset sections should leave at the top.
+ */
+function useSectionNav() {
+  const [headerH, setHeaderH] = useState(64);
+  const [active, setActive] = useState<string>(SECTIONS[0].id);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  // The site header is one row on desktop and two on phones, so measure it rather than guess.
+  useEffect(() => {
+    const header = document.querySelector('header');
+    if (!header) return;
+    const ro = new ResizeObserver(() => setHeaderH(header.getBoundingClientRect().height));
+    ro.observe(header);
+    return () => ro.disconnect();
+  }, []);
+
+  const offset = headerH + (barRef.current?.offsetHeight ?? 52) + 12;
+
+  useEffect(() => {
+    // Five position reads per scroll event is cheap, so no throttling needed.
+    const onScroll = () => {
+      let current: string = SECTIONS[0].id;
+      for (const { id } of SECTIONS) {
+        const el = document.getElementById(id);
+        if (el && el.getBoundingClientRect().top <= offset + 24) current = id;
+      }
+      // At the very bottom the last section may be too short to reach the top; still mark it active.
+      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4) current = SECTIONS[SECTIONS.length - 1].id;
+      setActive(current);
+    };
+    onScroll();
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [offset]);
+
+  // Keep the active tab visible in the horizontally scrolling bar on phones.
+  useEffect(() => {
+    const btn = barRef.current?.querySelector<HTMLElement>(`[data-section="${active}"]`);
+    btn?.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }, [active]);
+
+  const go = (id: string) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - offset, behavior: reduce ? 'auto' : 'smooth' });
+    setActive(id);
+  };
+
+  const bar = (
+    <div
+      ref={barRef}
+      className="sticky z-20 -mx-4 mb-4 border-b border-fpl-border/60 bg-fpl-dark/85 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-fpl-dark/70"
+      style={{ top: headerH }}
+    >
+      <nav className="no-scrollbar flex gap-1.5 overflow-x-auto" aria-label="Player Stats sections">
+        {SECTIONS.map((sec) => (
+          <button
+            key={sec.id}
+            type="button"
+            data-section={sec.id}
+            onClick={() => go(sec.id)}
+            aria-current={active === sec.id ? 'true' : undefined}
+            className={`shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors sm:text-sm ${
+              active === sec.id
+                ? 'bg-fpl-accent text-fpl-purple'
+                : 'bg-fpl-raised/70 text-slate-300 ring-1 ring-inset ring-fpl-border hover:text-white'
+            }`}
+          >
+            {sec.label}
+          </button>
+        ))}
+      </nav>
+    </div>
+  );
+
+  return { bar };
+}
+
 export default function PlayerStatsPage() {
   const { data: bootstrap } = useBootstrapStatic();
   const [positionFilter, setPositionFilter] = useState<string>('');
   const [teamFilter, setTeamFilter] = useState<string>('');
+  const { bar: sectionNav } = useSectionNav();
 
   const teamsById = useMemo(
     () => new Map((bootstrap?.teams ?? []).map((t) => [t.id, t])),
@@ -1146,7 +1240,9 @@ export default function PlayerStatsPage() {
         <p className="text-slate-400 text-sm mt-1">Captaincy picks, transfer trends and season stats for every player.</p>
       </div>
 
-      <section className="card p-4 sm:p-5">
+      {sectionNav}
+
+      <section id="captains" className="card p-4 sm:p-5">
         <h3 className="section-title mb-3">Most captained</h3>
         <div className="grid grid-cols-2 gap-2 sm:gap-3">
           <CaptainTile label="This gameweek" shortLabel="This GW" sublabel={currentGw?.name ?? null} player={currentCaptain} />
@@ -1154,9 +1250,11 @@ export default function PlayerStatsPage() {
         </div>
       </section>
 
-      <StatLeadersCard elements={bootstrap?.elements ?? []} teamsById={teamsById} />
+      <div id="leaders">
+        <StatLeadersCard elements={bootstrap?.elements ?? []} teamsById={teamsById} />
+      </div>
 
-      <section className="card mt-5 p-4 sm:p-5">
+      <section id="transfers" className="card mt-5 p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
           <h3 className="section-title">
             Transfers
@@ -1170,13 +1268,15 @@ export default function PlayerStatsPage() {
         </div>
       </section>
 
-      <PricesCard
-        elements={bootstrap?.elements ?? []}
-        teamsById={teamsById}
-        finishedGameweeks={(bootstrap?.events ?? []).filter((e) => e.finished).length}
-      />
+      <div id="prices">
+        <PricesCard
+          elements={bootstrap?.elements ?? []}
+          teamsById={teamsById}
+          finishedGameweeks={(bootstrap?.events ?? []).filter((e) => e.finished).length}
+        />
+      </div>
 
-      <section className="mt-5 min-w-0 overflow-hidden">
+      <section id="players" className="mt-5 min-w-0 overflow-hidden">
         <PlayerStatsTable
           elements={bootstrap?.elements ?? []}
           teams={bootstrap?.teams ?? []}

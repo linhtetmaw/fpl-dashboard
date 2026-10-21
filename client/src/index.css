@@ -153,3 +153,11 @@ body {
     animation: none;
   }
 }
+
+/* Horizontally scrollable rows (e.g. section shortcuts) without a visible scrollbar. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
