@@ -5,36 +5,36 @@ import { useBootstrapStatic } from '../hooks/useFplApi';
 import { getPlayerImageUrl } from '../utils/playerPhoto';
 import type { FplNewsPlayer } from '../types/fpl';
 
-// Burmese UI strings – have a native speaker review these.
 type StatusFilter = 'all' | 'i' | 's' | 'd' | 'u';
 
-const FILTERS: { id: StatusFilter; my: string; en: string }[] = [
-  { id: 'all', my: 'အားလုံး', en: 'All' },
-  { id: 'i', my: 'ဒဏ်ရာ', en: 'Injured' },
-  { id: 's', my: 'ပွဲပိတ်', en: 'Suspended' },
-  { id: 'd', my: 'မသေချာ', en: 'Doubtful' },
-  { id: 'u', my: 'မရနိုင်', en: 'Unavailable' },
+const FILTERS: { id: StatusFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'i', label: 'Injured' },
+  { id: 's', label: 'Suspended' },
+  { id: 'd', label: 'Doubtful' },
+  { id: 'u', label: 'Unavailable' },
 ];
 
-const STATUS: Record<string, { my: string; en: string; badge: string }> = {
-  i: { my: 'ဒဏ်ရာရ', en: 'Injured', badge: 'bg-rose-500/15 text-rose-300 ring-rose-500/40' },
-  s: { my: 'ပွဲပိတ်ခံ', en: 'Suspended', badge: 'bg-red-500/15 text-red-300 ring-red-500/40' },
-  d: { my: 'မသေချာ', en: 'Doubtful', badge: 'bg-amber-400/15 text-amber-300 ring-amber-400/40' },
-  u: { my: 'မရနိုင်', en: 'Unavailable', badge: 'bg-slate-500/20 text-slate-300 ring-slate-500/40' },
-  n: { my: 'ကစားခွင့်မရှိ', en: 'Not eligible', badge: 'bg-slate-500/20 text-slate-300 ring-slate-500/40' },
-  a: { my: 'ပြန်ကစားနိုင်', en: 'Available', badge: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/40' },
+const STATUS: Record<string, { label: string; badge: string }> = {
+  i: { label: 'Injured', badge: 'bg-rose-500/15 text-rose-300 ring-rose-500/40' },
+  s: { label: 'Suspended', badge: 'bg-red-500/15 text-red-300 ring-red-500/40' },
+  d: { label: 'Doubtful', badge: 'bg-amber-400/15 text-amber-300 ring-amber-400/40' },
+  u: { label: 'Unavailable', badge: 'bg-slate-500/20 text-slate-300 ring-slate-500/40' },
+  n: { label: 'Not eligible', badge: 'bg-slate-500/20 text-slate-300 ring-slate-500/40' },
+  a: { label: 'Available', badge: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/40' },
 };
 
 const POSITIONS: Record<number, string> = { 1: 'GKP', 2: 'DEF', 3: 'MID', 4: 'FWD' };
 const PAGE_SIZE = 24;
 
-/** "3 hours ago" in Burmese. */
+/** "3 hours ago". */
 function timeAgo(iso: string): string {
   const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 60) return `လွန်ခဲ့သော ${Math.max(1, mins)} မိနစ်က`;
+  if (mins < 60) return `${Math.max(1, mins)} min ago`;
   const hours = Math.round(mins / 60);
-  if (hours < 24) return `လွန်ခဲ့သော ${hours} နာရီက`;
-  return `လွန်ခဲ့သော ${Math.round(hours / 24)} ရက်က`;
+  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
+  const days = Math.round(hours / 24);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
 function chanceTone(chance: number): string {
@@ -79,30 +79,25 @@ function NewsCard({ player, teamName, teamShort }: { player: FplNewsPlayer; team
           </span>
           <span
             className={`ml-auto inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${status.badge}`}
-            title={status.en}
           >
-            <span lang="my" className="font-myanmar">{status.my}</span>
+            {status.label}
           </span>
         </div>
         {player.news_en && <p className="mt-1 text-sm leading-relaxed text-slate-200">{player.news_en}</p>}
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
           {chance != null && chance < 100 && (
             <span className={`font-semibold tabular-nums ${chanceTone(chance)}`}>
-              <span lang="my" className="font-myanmar font-normal text-slate-500">ကစားနိုင်ခြေ </span>
-              {chance}%
+              {chance}%<span className="font-normal text-slate-500"> chance</span>
             </span>
           )}
           {player.selected_by_percent != null && (
             <span className="tabular-nums">
-              <span lang="my" className="font-myanmar">ရွေးချယ်ထားသူ </span>
-              {player.selected_by_percent}%
+              {player.selected_by_percent}% owned
             </span>
           )}
           {player.news_added && (
             <time
               dateTime={player.news_added}
-              lang="my"
-              className="font-myanmar"
               title={new Date(player.news_added).toLocaleString()}
             >
               {timeAgo(player.news_added)}
@@ -144,9 +139,7 @@ export default function FplNews() {
   return (
     <section className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <h3 lang="my" className="font-myanmar text-lg font-semibold text-white leading-9">
-          ကစားသမား သတင်းများ
-        </h3>
+        <h3 className="section-title">Latest updates</h3>
         <div className="segmented" role="group" aria-label="Filter by status">
           {FILTERS.map((f) => (
             <button
@@ -158,9 +151,8 @@ export default function FplNews() {
                 setFilter(f.id);
                 setShown(PAGE_SIZE);
               }}
-              title={f.en}
             >
-              <span lang="my" className="font-myanmar">{f.my}</span>
+              {f.label}
               <span className="ml-1 tabular-nums opacity-60">{counts[f.id] ?? 0}</span>
             </button>
           ))}
@@ -177,9 +169,7 @@ export default function FplNews() {
             ))}
           </ul>
         ) : players.length === 0 ? (
-          <p lang="my" className="card p-6 font-myanmar text-sm text-slate-400">
-            သတင်း မရှိသေးပါ
-          </p>
+          <p className="card p-6 text-sm text-slate-400">No player news right now.</p>
         ) : (
           <>
             <ul className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
