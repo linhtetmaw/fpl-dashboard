@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink, Link, useLocation, useSearchParams } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import { useBootstrapStatic } from '../hooks/useFplApi';
-import { ClockIcon, LogoMark, RefreshIcon, SwapIcon } from './icons';
+import { ClockIcon, LogoMark, SwapIcon } from './icons';
 
 const TEAM_ID_KEY = 'fpl_team_id';
 
@@ -88,17 +87,7 @@ function DeadlineChip({ className = '' }: { className?: string }) {
 export default function AppLayout() {
   const location = useLocation();
   const [, setSearchParams] = useSearchParams();
-  const queryClient = useQueryClient();
   const hasTeam = hasStoredTeam();
-
-  const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleRefresh = () => {
-    if (isRefreshing) return;
-    setIsRefreshing(true);
-    queryClient.invalidateQueries({ queryKey: ['fpl'] });
-    setTimeout(() => setIsRefreshing(false), 1000);
-  };
 
   const handleChangeTeam = () => {
     localStorage.removeItem(TEAM_ID_KEY);
@@ -140,16 +129,6 @@ export default function AppLayout() {
               <DeadlineChip className="hidden lg:inline-flex" />
               {hasTeam && (
                 <>
-                  <button
-                    type="button"
-                    onClick={handleRefresh}
-                    disabled={isRefreshing}
-                    className="btn-ghost px-2.5 sm:px-3"
-                    title="Refresh data"
-                  >
-                    <RefreshIcon className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                    <span className="hidden sm:inline">{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
-                  </button>
                   <button type="button" onClick={handleChangeTeam} className="btn-ghost px-2.5 sm:px-3" title="Change team">
                     <SwapIcon className="h-4 w-4" />
                     <span className="hidden sm:inline">Change team</span>

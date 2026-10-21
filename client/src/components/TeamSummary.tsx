@@ -1,4 +1,6 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { RefreshIcon } from './icons';
 import type { TeamPointsSummary } from '../types/fpl';
 import type { FplEvent } from '../types/fpl';
 
@@ -51,6 +53,15 @@ export default function TeamSummary({
   showShLeagueBadge = false,
 }: TeamSummaryProps) {
   const isShHost = SH_HOST_TEAM_IDS.has(teamId);
+  const queryClient = useQueryClient();
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  /** Re-fetch all FPL data (live points, picks, league tables); the server cache keeps this cheap. */
+  const handleRefresh = () => {
+    if (isRefreshing) return;
+    setIsRefreshing(true);
+    queryClient.invalidateQueries({ queryKey: ['fpl'] });
+    setTimeout(() => setIsRefreshing(false), 1000);
+  };
   const initials = teamName
     .split(/\s+/)
     .filter(Boolean)
@@ -90,7 +101,18 @@ export default function TeamSummary({
             </p>
           </div>
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <button
+            type="button"
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="btn-ghost h-[30px] w-[30px] !p-0 sm:h-auto sm:w-auto sm:!px-3 sm:!py-2"
+            title="Refresh data"
+            aria-label={isRefreshing ? 'Refreshing data' : 'Refresh data'}
+          >
+            <RefreshIcon className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">{isRefreshing ? 'Refreshing…' : 'Refresh'}</span>
+          </button>
           <label htmlFor="gw-select" className="sr-only">
             Gameweek
           </label>
