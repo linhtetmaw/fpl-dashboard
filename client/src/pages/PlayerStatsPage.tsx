@@ -283,6 +283,208 @@ function TransferColumn({ direction, rows }: { direction: Direction; rows: Trans
 }
 
 /* ------------------------------------------------------------------ */
+/* Stat leaders: xG, xA, xGI, defensive contribution                   */
+/* ------------------------------------------------------------------ */
+
+type LeaderStat = 'xg' | 'xa' | 'xgi' | 'defcon';
+type LeaderMode = 'total' | 'per90';
+
+/** Per-90 lists need enough minutes to be meaningful (otherwise a 20-minute cameo tops the table). */
+const PER90_MIN_MINUTES = 270;
+
+const LEADER_STATS: {
+  id: LeaderStat;
+  tab: string;
+  title: string;
+  total: (e: FplElement) => number;
+  per90: (e: FplElement) => number;
+  /** Actual output to compare with the expected stat. */
+  actual?: { label: string; value: (e: FplElement) => number };
+  decimals: number;
+}[] = [
+  {
+    id: 'xg',
+    tab: 'xG',
+    title: 'Expected goals',
+    total: (e) => parseFloat(e.expected_goals ?? '0') || 0,
+    per90: (e) => e.expected_goals_per_90 ?? 0,
+    actual: { label: 'G', value: (e) => e.goals_scored ?? 0 },
+    decimals: 2,
+  },
+  {
+    id: 'xa',
+    tab: 'xA',
+    title: 'Expected assists',
+    total: (e) => parseFloat(e.expected_assists ?? '0') || 0,
+    per90: (e) => e.expected_assists_per_90 ?? 0,
+    actual: { label: 'A', value: (e) => e.assists ?? 0 },
+    decimals: 2,
+  },
+  {
+    id: 'xgi',
+    tab: 'xGI',
+    title: 'Expected goal involvements',
+    total: (e) => parseFloat(e.expected_goal_involvements ?? '0') || 0,
+    per90: (e) => e.expected_goal_involvements_per_90 ?? 0,
+    actual: { label: 'G+A', value: (e) => (e.goals_scored ?? 0) + (e.assists ?? 0) },
+    decimals: 2,
+  },
+  {
+    id: 'defcon',
+    tab: 'DefCon',
+    title: 'Defensive contribution',
+    total: (e) => e.defensive_contribution ?? 0,
+    per90: (e) => e.defensive_contribution_per_90 ?? 0,
+    decimals: 0,
+  },
+];
+
+function StatLeadersCard({ elements, teamsById }: { elements: FplElement[]; teamsById: Map<number, FplTeam> }) {
+  const [statId, setStatId] = useState<LeaderStat>('xg');
+  const [mode, setMode] = useState<LeaderMode>('total');
+  const [position, setPosition] = useState<0 | 2 | 3>(0);
+  const stat = LEADER_STATS.find((x) => x.id === statId)!;
+  const isDefCon = statId === 'defcon';
+
+  const rows = useMemo(() => {
+    const value = mode === 'per90' ? stat.per90 : stat.total;
+    return elements
+      .filter((e) => (mode === 'per90' ? (e.minutes ?? 0) >= PER90_MIN_MINUTES : true))
+      .filter((e) => !isDefCon || position === 0 || e.element_type === position)
+      .map((e) => ({ e, value: value(e) }))
+      .filter((r) => r.value > 0)
+      .sort((a, b) => b.value - a.value || (b.e.minutes ?? 0) - (a.e.minutes ?? 0))
+      .slice(0, TOP_N);
+  }, [elements, stat, mode, position, isDefCon]);
+
+  const max = rows[0]?.value || 1;
+  const decimals = mode === 'per90' ? 2 : stat.decimals;
+  const half = Math.ceil(rows.length / 2);
+
+  const renderRow = ({ e, value }: { e: FplElement; value: number }, rank: number) => {
+    const p = toSummary(e, teamsById);
+    const actual = stat.actual && mode === 'total' ? stat.actual.value(e) : null;
+    const diff = actual != null ? actual - value : null;
+    return (
+      <li key={e.id} className="flex items-center gap-2 px-2.5 py-2 sm:gap-2.5 sm:px-3">
+        <span className="w-4 shrink-0 text-right font-display text-xs font-semibold tabular-nums text-slate-500 sm:w-5">{rank}</span>
+        <PlayerPhoto url={p.photoUrl} name={p.name} className="h-8 w-8" />
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-1.5">
+            <span className="truncate text-sm font-medium text-white">{p.name}</span>
+            <span className="shrink-0 text-[11px] text-slate-500">{p.teamShort}</span>
+            {/* Position pill only from sm up: on phones the space goes to the name. */}
+            <span className="hidden sm:inline-flex">
+              <PosPill type={e.element_type} />
+            </span>
+          </div>
+          <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-fpl-border/60">
+            <div className="h-full rounded-full bg-fpl-brand/70" style={{ width: `${Math.max(4, (value / max) * 100)}%` }} />
+          </div>
+        </div>
+        <div className="w-[62px] shrink-0 text-right sm:w-[68px]">
+          <p className="font-display text-sm font-bold tabular-nums text-white">{value.toFixed(decimals)}</p>
+          {actual != null && diff != null ? (
+            <p className="text-[10px] tabular-nums text-slate-500" title={`${actual} actual vs ${value.toFixed(2)} expected`}>
+              {actual} {stat.actual!.label}{' '}
+              <span className={diff >= 0.5 ? 'text-emerald-400' : diff <= -0.5 ? 'text-rose-400' : 'text-slate-500'}>
+                ({diff >= 0 ? '+' : '−'}
+                {Math.abs(diff).toFixed(1)})
+              </span>
+            </p>
+          ) : isDefCon && mode === 'total' ? (
+            <p className="text-[10px] tabular-nums text-slate-500">{(e.defensive_contribution_per_90 ?? 0).toFixed(1)} /90</p>
+          ) : (
+            <p className="text-[10px] tabular-nums text-slate-500">{(e.minutes ?? 0).toLocaleString()}′ played</p>
+          )}
+        </div>
+      </li>
+    );
+  };
+
+  return (
+    <section className="card mt-5 p-4 sm:p-5">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h3 className="section-title">Stat leaders</h3>
+          <p className="text-xs text-slate-500">
+            {stat.title} · top {TOP_N}
+            {mode === 'per90' ? ` · min ${PER90_MIN_MINUTES} minutes` : ' · season total'}
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="segmented" role="tablist" aria-label="Stat">
+            {LEADER_STATS.map((x) => (
+              <button
+                key={x.id}
+                type="button"
+                role="tab"
+                aria-selected={statId === x.id}
+                data-active={statId === x.id}
+                onClick={() => setStatId(x.id)}
+                className="!px-2.5"
+                title={x.title}
+              >
+                {x.tab}
+              </button>
+            ))}
+          </div>
+          <div className="segmented" role="group" aria-label="Total or per 90 minutes">
+            {(['total', 'per90'] as const).map((m) => (
+              <button key={m} type="button" data-active={mode === m} aria-pressed={mode === m} onClick={() => setMode(m)} className="!px-2.5">
+                {m === 'total' ? 'Total' : 'Per 90'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {isDefCon && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="segmented" role="group" aria-label="Position">
+            {([0, 2, 3] as const).map((pos) => (
+              <button
+                key={pos}
+                type="button"
+                data-active={position === pos}
+                aria-pressed={position === pos}
+                onClick={() => setPosition(pos)}
+                className="!px-2.5 !text-xs"
+              >
+                {pos === 0 ? 'All' : POS_LABELS[pos]}
+              </button>
+            ))}
+          </div>
+          <span className="text-[11px] text-slate-500">
+            FPL bonus: DEF 10+ (tackles, blocks, interceptions, clearances) · MID/FWD 12+ (incl. recoveries) = 2 pts
+          </span>
+        </div>
+      )}
+
+      {rows.length === 0 ? (
+        <div className="rounded-xl border border-dashed border-fpl-border px-4 py-8 text-center text-sm text-slate-500">No data yet</div>
+      ) : (
+        <div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
+          <ol className="min-w-0 divide-y divide-fpl-border/60 rounded-xl border border-fpl-border bg-fpl-raised/30">
+            {rows.slice(0, half).map((r, i) => renderRow(r, i + 1))}
+          </ol>
+          {rows.length > half && (
+            <ol className="min-w-0 divide-y divide-fpl-border/60 rounded-xl border border-fpl-border bg-fpl-raised/30">
+              {rows.slice(half).map((r, i) => renderRow(r, i + half + 1))}
+            </ol>
+          )}
+        </div>
+      )}
+      {stat.actual && mode === 'total' && (
+        <p className="mt-2 text-[11px] text-slate-500">
+          Green = scoring more than expected, red = less (a sign returns may be due).
+        </p>
+      )}
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ */
 /* Player stats table                                                  */
 /* ------------------------------------------------------------------ */
 
@@ -951,6 +1153,8 @@ export default function PlayerStatsPage() {
           <CaptainTile label="Last gameweek" shortLabel="Last GW" sublabel={previousGw?.name ?? null} player={previousCaptain} />
         </div>
       </section>
+
+      <StatLeadersCard elements={bootstrap?.elements ?? []} teamsById={teamsById} />
 
       <section className="card mt-5 p-4 sm:p-5">
         <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">

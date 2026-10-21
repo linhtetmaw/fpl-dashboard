@@ -55,6 +55,21 @@ export interface FplElement {
   cost_change_start?: number;
   /** Minutes played this season. */
   minutes?: number;
+  goals_scored?: number;
+  assists?: number;
+  /** Season expected stats; FPL sends these as strings, e.g. "5.69". */
+  expected_goals?: string;
+  expected_assists?: string;
+  expected_goal_involvements?: string;
+  expected_goals_per_90?: number;
+  expected_assists_per_90?: number;
+  expected_goal_involvements_per_90?: number;
+  /** Defensive contribution count (tackles + clearances/blocks/interceptions, + recoveries for MID/FWD). */
+  defensive_contribution?: number;
+  defensive_contribution_per_90?: number;
+  tackles?: number;
+  clearances_blocks_interceptions?: number;
+  recoveries?: number;
 }
 
 export interface FplTeam {
