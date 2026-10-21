@@ -7,6 +7,7 @@ import PlayerStatsPage from './pages/PlayerStatsPage';
 import PlayerNewsPage from './pages/PlayerNewsPage';
 import FixturesPage from './pages/FixturesPage';
 import SquadPlannerPage from './pages/SquadPlannerPage';
+import NotFoundPage from './pages/NotFoundPage';
 import OpinionsPage from './pages/OpinionsPage';
 
 function App() {
@@ -30,6 +31,7 @@ function App() {
         <Route path="fixtures" element={<FixturesPage />} />
         <Route path="squad-planner" element={<SquadPlannerPage />} />
         <Route path="opinions" element={<OpinionsPage />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>
   );

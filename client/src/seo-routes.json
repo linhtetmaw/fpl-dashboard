@@ -1,0 +1,26 @@
+{
+  "/": {
+    "title": "FPL House · Live FPL points, mini-leagues & stats",
+    "description": "Live Fantasy Premier League points with auto-subs, live mini-league tables with chips and captains, player stats, fixtures and a squad planner. No login needed."
+  },
+  "/player-stats": {
+    "title": "FPL Player Stats – xG, xA, Transfers & Prices | FPL House",
+    "description": "Most captained FPL players, xG, xA and defensive contribution leaders, most transferred in and out, price changes and season stats for every player."
+  },
+  "/player-news": {
+    "title": "FPL Injury & Suspension News | FPL House",
+    "description": "Latest Fantasy Premier League player news: injuries, suspensions, doubtful players and chance of playing, from the official FPL game."
+  },
+  "/fixtures": {
+    "title": "FPL Fixtures & Difficulty (FDR) | FPL House",
+    "description": "Premier League fixtures and results by gameweek, with a fixture difficulty (FDR) table for every club to plan your FPL transfers."
+  },
+  "/squad-planner": {
+    "title": "FPL Squad Planner – Build & Track a £100m Team | FPL House",
+    "description": "Build a £100m Fantasy Premier League squad at today's prices, save up to 3 teams and track their gameweek points live."
+  },
+  "/opinions": {
+    "title": "FPL Videos & Opinions | FPL House",
+    "description": "Fantasy Premier League tips, previews and opinions from the FPL House video series."
+  }
+}

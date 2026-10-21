@@ -6,6 +6,7 @@ import compression from 'compression';
 import fetch from 'node-fetch';
 import { loadIndex, addToIndex, addStandingsRows, searchIndex, getIndexSize, saveNow as saveSearchIndex } from './search-index.js';
 import { startTeamCrawler } from './team-crawler.js';
+import { renderPage, sitemapXml } from './seo.js';
 import { loadLeagueIndex, addLeagueToIndex, searchLeaguesByName } from './league-index.js';
 import { startFplNews, getFplNews } from './fpl-news.js';
 import { startSquads, registerSquadRoutes } from './squads.js';
@@ -826,10 +827,15 @@ try {
     // Vite's /assets files have content hashes in their names, so they can be cached forever; index.html must not be.
     app.use('/assets', express.static(path.join(clientDist, 'assets'), { immutable: true, maxAge: '1y' }));
     app.use(express.static(clientDist, { maxAge: '1h', index: false }));
+    app.get('/sitemap.xml', (req, res) => {
+      res.type('application/xml').set('Cache-Control', 'public, max-age=3600').send(sitemapXml(req));
+    });
+    // Every other page: the app shell with that page's title/description/canonical filled in (see seo.js).
+    const indexHtml = fs.readFileSync(path.join(clientDist, 'index.html'), 'utf8');
     app.get('*', (req, res, next) => {
       if (req.path.startsWith('/api')) return next();
-      res.set('Cache-Control', 'no-cache');
-      res.sendFile(path.join(clientDist, 'index.html'));
+      const { status, html } = renderPage(indexHtml, req);
+      res.status(status).set('Cache-Control', 'no-cache').type('html').send(html);
     });
     console.log('Serving static files from', clientDist);
   }

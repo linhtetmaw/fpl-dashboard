@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Outlet, NavLink, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useBootstrapStatic } from '../hooks/useFplApi';
 import { ClockIcon, LogoMark, SwapIcon } from './icons';
+import SEO_ROUTES from '../seo-routes.json';
 
 const TEAM_ID_KEY = 'fpl_team_id';
 
@@ -84,8 +85,16 @@ function DeadlineChip({ className = '' }: { className?: string }) {
   );
 }
 
+const PAGE_TITLES: Record<string, { title: string }> = SEO_ROUTES;
+
 export default function AppLayout() {
   const location = useLocation();
+
+  // Browser tab (and Google Analytics page) title per section; the server sets the same on first load (server/seo.js).
+  useEffect(() => {
+    const p = location.pathname.length > 1 ? location.pathname.replace(/\/+$/, '') : location.pathname;
+    document.title = PAGE_TITLES[p]?.title ?? 'Page not found | FPL House';
+  }, [location.pathname]);
   const [, setSearchParams] = useSearchParams();
   const hasTeam = hasStoredTeam();
 
