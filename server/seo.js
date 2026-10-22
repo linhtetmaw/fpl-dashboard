@@ -12,7 +12,35 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const ROUTES = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'client', 'src', 'seo-routes.json'), 'utf8'));
+/**
+ * Page titles/descriptions. The production container only has the built app (client/dist), not client/src, so the
+ * build copies the file into dist; client/src is the fallback for local development. A missing file must never stop
+ * the server, so fall back to the default title for every page.
+ */
+let routesLoaded = true;
+
+function loadRoutes() {
+  const candidates = [
+    path.join(__dirname, '..', 'client', 'dist', 'seo-routes.json'),
+    path.join(__dirname, '..', 'client', 'src', 'seo-routes.json'),
+  ];
+  for (const file of candidates) {
+    try {
+      return JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      // Try the next location.
+    }
+  }
+  routesLoaded = false;
+  console.warn('seo-routes.json not found: using default page titles.');
+  return {
+    '/': {
+      title: 'FPL House · Live FPL points, mini-leagues & stats',
+      description: 'Live Fantasy Premier League points, mini-league tables, player stats, fixtures and a squad planner.',
+    },
+  };
+}
+const ROUTES = loadRoutes();
 const NOT_FOUND = { title: 'Page not found | FPL House', description: 'This page does not exist on FPL House.' };
 
 const escapeHtml = (s) =>
@@ -31,7 +59,8 @@ function cleanPath(p) {
 /** Fill one page's meta into the built index.html. Returns { status, html }. */
 export function renderPage(templateHtml, req) {
   const p = cleanPath(req.path);
-  const route = ROUTES[p];
+  // Without the routes file we can't tell real pages from unknown ones, so serve every path with the default title.
+  const route = ROUTES[p] ?? (routesLoaded ? undefined : ROUTES['/']);
   const meta = route ?? NOT_FOUND;
   const title = escapeHtml(meta.title);
   const description = escapeHtml(meta.description);
