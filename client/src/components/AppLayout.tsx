@@ -4,6 +4,7 @@ import { useBootstrapStatic } from '../hooks/useFplApi';
 import { ClockIcon, LogoMark, MoonIcon, SunIcon, SwapIcon } from './icons';
 import { getTheme, setTheme, type Theme } from '../theme';
 import SEO_ROUTES from '../seo-routes.json';
+import PlayerCardProvider from './PlayerCardProvider';
 
 const TEAM_ID_KEY = 'fpl_team_id';
 
@@ -191,10 +192,13 @@ export default function AppLayout() {
         </div>
       </div>
 
-      {/* Keyed by path so only switching sections replays the fade (not ?gw= / ?team= changes). */}
-      <div key={location.pathname} className="page-enter flex-1 min-h-0">
-        <Outlet />
-      </div>
+      {/* The player card provider sits outside the fading wrapper so its pop-up is never positioned mid-animation.
+          Keyed by path so only switching sections replays the fade (not ?gw= / ?team= changes). */}
+      <PlayerCardProvider>
+        <div key={location.pathname} className="page-enter flex-1 min-h-0">
+          <Outlet />
+        </div>
+      </PlayerCardProvider>
 
       <footer className="shrink-0 border-t border-fpl-border mt-8">
         <div className="max-w-6xl mx-auto px-4 py-6 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">

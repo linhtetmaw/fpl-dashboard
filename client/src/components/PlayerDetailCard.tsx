@@ -131,7 +131,9 @@ export default function PlayerDetailCard({ element, teamName, teams, imageUrl, o
           {hasNews && (
             <div className={`rounded-lg border px-3 py-2 text-xs ${newsTone}`}>
               {element.news}
-              {chance != null && chance < 100 && <span className="opacity-75"> · {chance}% chance of playing</span>}
+              {chance != null && chance < 100 && !element.news?.includes(`${chance}%`) && (
+                <span className="opacity-75"> · {chance}% chance of playing</span>
+              )}
             </div>
           )}
 

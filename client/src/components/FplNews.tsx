@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getFplNews } from '../api/fpl';
 import { useBootstrapStatic } from '../hooks/useFplApi';
 import { getPlayerImageUrl } from '../utils/playerPhoto';
+import { playerCardProps, usePlayerCard } from './PlayerCardProvider';
 import type { FplNewsPlayer } from '../types/fpl';
 
 type StatusFilter = 'all' | 'i' | 's' | 'd' | 'u';
@@ -68,8 +69,12 @@ function PlayerPhoto({ url, name }: { url: string | null; name: string }) {
 function NewsCard({ player, teamName, teamShort }: { player: FplNewsPlayer; teamName: string; teamShort: string }) {
   const status = STATUS[player.status] ?? STATUS.u;
   const chance = player.chance_of_playing_next_round;
+  const openPlayer = usePlayerCard();
   return (
-    <li className="card p-4 flex gap-3">
+    <li
+      {...playerCardProps(openPlayer, player.id, player.web_name)}
+      className="card p-4 flex gap-3 cursor-pointer transition-colors hover:border-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand/60"
+    >
       <PlayerPhoto url={getPlayerImageUrl(player, teamName)} name={player.web_name} />
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">

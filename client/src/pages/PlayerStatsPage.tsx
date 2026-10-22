@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useBootstrapStatic, getCurrentEvent } from '../hooks/useFplApi';
+import { playerCardProps, usePlayerCard } from '../components/PlayerCardProvider';
 import type { FplElement, FplEvent, FplTeam } from '../types/fpl';
 
 const TOP_N = 10;
@@ -155,8 +156,12 @@ function CaptainTile({
   player: PlayerSummary | null;
 }) {
   const shortSub = sublabel?.replace(/^Gameweek\s*/i, 'GW');
+  const openPlayer = usePlayerCard();
   return (
-    <div className="flex items-center gap-2 sm:gap-4 rounded-lg sm:rounded-xl border border-fpl-border bg-fpl-raised/50 p-2 sm:p-4 min-w-0">
+    <div
+      {...(player ? playerCardProps(openPlayer, player.id, player.name) : {})}
+      className={`flex items-center gap-2 sm:gap-4 rounded-lg sm:rounded-xl border border-fpl-border bg-fpl-raised/50 p-2 sm:p-4 min-w-0${player ? ' cursor-pointer transition-colors hover:bg-fpl-raised/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand/60' : ''}`}
+    >
       {player ? (
         <div className="relative shrink-0">
           <PlayerPhoto url={player.photoUrl} name={player.name} className="h-9 w-9 sm:h-14 sm:w-14" />
@@ -198,9 +203,11 @@ function CaptainTile({
 
 function PodiumCard({ row, rank, direction }: { row: TransferRow; rank: number; direction: Direction }) {
   const s = DIRECTION_STYLES[direction];
+  const openPlayer = usePlayerCard();
   return (
     <div
-      className="group relative flex flex-col items-center overflow-hidden rounded-xl border border-fpl-border bg-fpl-raised/60 px-1.5 pb-3 pt-2.5 sm:px-2 text-center min-w-0 transition-colors hover:border-slate-600"
+      {...playerCardProps(openPlayer, row.id, row.name)}
+      className="group relative flex cursor-pointer flex-col items-center overflow-hidden rounded-xl border border-fpl-border bg-fpl-raised/60 px-1.5 pb-3 pt-2.5 sm:px-2 text-center min-w-0 transition-colors hover:border-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand/60"
       title={`${row.name} (${row.teamName}) · ${row.count.toLocaleString()} transfers ${direction}`}
     >
       <div className={`pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b ${s.glow} to-transparent`} />
@@ -225,6 +232,7 @@ function PodiumCard({ row, rank, direction }: { row: TransferRow; rank: number; 
 
 function TransferColumn({ direction, rows }: { direction: Direction; rows: TransferRow[] }) {
   const s = DIRECTION_STYLES[direction];
+  const openPlayer = usePlayerCard();
   const podium = rows.slice(0, PODIUM_N);
   const rest = rows.slice(PODIUM_N);
   const max = rows[0]?.count ?? 1;
@@ -255,7 +263,7 @@ function TransferColumn({ direction, rows }: { direction: Direction; rows: Trans
           {rest.length > 0 && (
             <ol className="mt-3 divide-y divide-fpl-border/60 rounded-xl border border-fpl-border bg-fpl-raised/30">
               {rest.map((row, i) => (
-                <li key={row.id} className="flex items-center gap-3 px-3 py-2">
+                <li key={row.id} {...playerCardProps(openPlayer, row.id, row.name)} className="flex items-center gap-3 px-3 py-2 cursor-pointer transition-colors hover:bg-fpl-raised/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand/60">
                   <span className="w-4 shrink-0 text-right font-display text-xs font-semibold text-slate-500 tabular-nums">
                     {i + PODIUM_N + 1}
                   </span>
@@ -360,13 +368,14 @@ function StatLeadersCard({ elements, teamsById }: { elements: FplElement[]; team
   const max = rows[0]?.value || 1;
   const decimals = mode === 'per90' ? 2 : stat.decimals;
   const half = Math.ceil(rows.length / 2);
+  const openPlayer = usePlayerCard();
 
   const renderRow = ({ e, value }: { e: FplElement; value: number }, rank: number) => {
     const p = toSummary(e, teamsById);
     const actual = stat.actual && mode === 'total' ? stat.actual.value(e) : null;
     const diff = actual != null ? actual - value : null;
     return (
-      <li key={e.id} className="flex items-center gap-2 px-2.5 py-2 sm:gap-2.5 sm:px-3">
+      <li key={e.id} {...playerCardProps(openPlayer, e.id, e.web_name)} className="flex items-center gap-2 px-2.5 py-2 sm:gap-2.5 sm:px-3 cursor-pointer transition-colors hover:bg-fpl-raised/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand/60">
         <span className="w-4 shrink-0 text-right font-display text-xs font-semibold tabular-nums text-slate-500 sm:w-5">{rank}</span>
         <PlayerPhoto url={p.photoUrl} name={p.name} className="h-8 w-8" />
         <div className="min-w-0 flex-1">
@@ -554,6 +563,7 @@ function PlayerStatsTable({
   onPositionChange: (v: string) => void;
   onTeamChange: (v: string) => void;
 }) {
+  const openPlayer = usePlayerCard();
   const [sortKey, setSortKey] = useState<SortKey>('points');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
 
@@ -687,7 +697,7 @@ function PlayerStatsTable({
         ) : (
           <ul className="divide-y divide-fpl-border/60">
             {sorted.map((e, i) => (
-              <li key={e.id} className="px-4 py-3">
+              <li key={e.id} {...playerCardProps(openPlayer, e.id, e.web_name)} className="px-4 py-3 cursor-pointer transition-colors hover:bg-fpl-raised/60 focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand/60">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="w-6 shrink-0 font-display text-xs font-semibold text-slate-600 tabular-nums">{i + 1}</span>
                   <span className="truncate text-sm font-medium text-white">{e.web_name}</span>
@@ -746,7 +756,7 @@ function PlayerStatsTable({
                     sortKey === key ? 'text-white font-semibold' : 'text-slate-400'
                   }`;
                 return (
-                  <tr key={e.id} className="border-b border-fpl-border/50 last:border-0 hover:bg-fpl-raised/50 transition-colors">
+                  <tr key={e.id} {...playerCardProps(openPlayer, e.id, e.web_name)} className="border-b border-fpl-border/50 last:border-0 hover:bg-fpl-raised/50 transition-colors cursor-pointer focus:outline-none focus-visible:bg-fpl-raised/60">
                     <td className="px-4 py-2.5 font-display text-xs font-semibold text-slate-600 tabular-nums">{i + 1}</td>
                     <td className="px-4 py-2.5">
                       <div className="flex items-center gap-2 min-w-0">
@@ -840,6 +850,7 @@ function StatTable({
   rows: StatRow[];
   emptyText: string;
 }) {
+  const openPlayer = usePlayerCard();
   const th = 'px-2 sm:px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 whitespace-nowrap';
   return (
     <div className="min-w-0">
@@ -871,7 +882,7 @@ function StatTable({
             </thead>
             <tbody>
               {rows.map((row, i) => (
-                <tr key={row.id} className="border-b border-fpl-border/50 last:border-0 hover:bg-fpl-raised/50 transition-colors">
+                <tr key={row.id} {...playerCardProps(openPlayer, row.id, row.player.name)} className="border-b border-fpl-border/50 last:border-0 hover:bg-fpl-raised/50 transition-colors cursor-pointer focus:outline-none focus-visible:bg-fpl-raised/60">
                   <td className="px-2 sm:px-3 py-2 text-right font-display text-xs font-semibold text-slate-500 tabular-nums">{i + 1}</td>
                   <td className="px-2 sm:px-3 py-2 max-w-0 w-full">
                     <div className="flex items-center gap-2.5 min-w-0">
