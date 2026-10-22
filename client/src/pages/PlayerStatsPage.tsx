@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { useBootstrapStatic, getCurrentEvent } from '../hooks/useFplApi';
+import { useQuery } from '@tanstack/react-query';
+import { getCurrentEvent } from '../hooks/useFplApi';
+import { getBootstrapStatic, getPlayerTracker } from '../api/fpl';
+import { timeAgo } from '../utils/timeAgo';
 import { playerCardProps, usePlayerCard } from '../components/PlayerCardProvider';
 import type { FplElement, FplEvent, FplTeam } from '../types/fpl';
 
@@ -58,6 +61,10 @@ interface PlayerSummary {
 
 interface TransferRow extends PlayerSummary {
   count: number;
+  /** Transfers in this direction over the tracker's recent window (up to the last 24h), when known. */
+  recent?: number;
+  /** Length of that window in hours (less than 24 right after tracking starts or after a deadline). */
+  recentHours?: number;
 }
 
 /** Build player photo URL for api/player-photo (same params as PitchView). */
@@ -226,6 +233,12 @@ function PodiumCard({ row, rank, direction }: { row: TransferRow; rank: number; 
         {s.sign}
         {compact.format(row.count)}
       </p>
+      {row.recent && row.recentHours ? (
+        <p className="relative text-[10px] tabular-nums text-slate-500" title={`Transfers in the last ${row.recentHours} hours`}>
+          {s.sign}
+          {compact.format(row.recent)} in {row.recentHours}h
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -277,8 +290,14 @@ function TransferColumn({ direction, rows }: { direction: Direction; rows: Trans
                       <div className={`h-full rounded-full ${s.bar}`} style={{ width: `${Math.max(4, (row.count / max) * 100)}%` }} />
                     </div>
                   </div>
-                  <span className="w-16 shrink-0 text-right text-xs font-medium text-slate-300 tabular-nums">
-                    {row.count.toLocaleString()}
+                  <span className="w-20 shrink-0 text-right tabular-nums">
+                    <span className="block text-xs font-medium text-slate-300">{row.count.toLocaleString()}</span>
+                    {row.recent && row.recentHours ? (
+                      <span className="block text-[10px] text-slate-500" title={`Transfers in the last ${row.recentHours} hours`}>
+                        {s.sign}
+                        {compact.format(row.recent)} in {row.recentHours}h
+                      </span>
+                    ) : null}
                   </span>
                 </li>
               ))}
@@ -922,10 +941,13 @@ function PricesCard({
   elements,
   teamsById,
   finishedGameweeks,
+  priceChangedAt,
 }: {
   elements: FplElement[];
   teamsById: Map<number, FplTeam>;
   finishedGameweeks: number;
+  /** element id → when its price changed this gameweek (recorded by the server; unknown before tracking began). */
+  priceChangedAt: Record<string, string>;
 }) {
   const [tab, setTab] = useState<PriceTab>('changes');
   const [valuePosition, setValuePosition] = useState<string>('');
@@ -943,7 +965,14 @@ function PricesCard({
       ...baseRow(e),
       cells: [
         formatPrice(e),
-        <span className={`font-semibold ${deltaClass(e.cost_change_event ?? 0)}`}>{formatPriceDelta(e.cost_change_event ?? 0)}</span>,
+        <span className="inline-flex flex-col items-end leading-tight">
+          <span className={`font-semibold ${deltaClass(e.cost_change_event ?? 0)}`}>{formatPriceDelta(e.cost_change_event ?? 0)}</span>
+          {priceChangedAt[e.id] && (
+            <span className="text-[10px] font-normal text-slate-500" title={new Date(priceChangedAt[e.id]).toLocaleString()}>
+              {timeAgo(priceChangedAt[e.id])}
+            </span>
+          )}
+        </span>,
         <span className={deltaClass(e.cost_change_start ?? 0)}>{formatPriceDelta(e.cost_change_start ?? 0)}</span>,
         formatSigned(netTransfers(e)),
       ],
@@ -952,7 +981,7 @@ function PricesCard({
       risers: changed.filter((e) => (e.cost_change_event ?? 0) > 0).sort(sortBy(1)).slice(0, TOP_N).map(toRow),
       fallers: changed.filter((e) => (e.cost_change_event ?? 0) < 0).sort(sortBy(-1)).slice(0, TOP_N).map(toRow),
     };
-  }, [elements, teamsById]);
+  }, [elements, teamsById, priceChangedAt]);
 
   // 3. Likely to rise / fall next, ranked by net transfers.
   const { likelyRise, likelyFall } = useMemo(() => {
@@ -1195,7 +1224,25 @@ function useSectionNav() {
 }
 
 export default function PlayerStatsPage() {
-  const { data: bootstrap } = useBootstrapStatic();
+  // Transfer counts and prices move all day, so refresh more often than the app-wide 24h bootstrap cache.
+  const { data: bootstrap, dataUpdatedAt } = useQuery({
+    queryKey: ['fpl', 'bootstrap-static'],
+    queryFn: getBootstrapStatic,
+    staleTime: 10 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
+  });
+  const { data: tracker } = useQuery({
+    queryKey: ['player-tracker'],
+    queryFn: getPlayerTracker,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
+  });
+  // Re-render each minute so "Updated 3 min ago" stays true.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
   const [positionFilter, setPositionFilter] = useState<string>('');
   const [teamFilter, setTeamFilter] = useState<string>('');
   const { bar: sectionNav } = useSectionNav();
@@ -1206,6 +1253,9 @@ export default function PlayerStatsPage() {
   );
 
   const { topIn, topOut } = useMemo(() => {
+    // Only show recent movement once there's at least an hour of history to compare against.
+    const windowHours = tracker?.transfers_window_hours ?? 0;
+    const recentHours = windowHours >= 1 ? Math.min(24, windowHours) : undefined;
     const elements: FplElement[] = bootstrap?.elements ?? [];
     const top = (count: (e: FplElement) => number): TransferRow[] =>
       elements
@@ -1216,10 +1266,10 @@ export default function PlayerStatsPage() {
         .map(({ e, count }) => ({ ...toSummary(e, teamsById), count }));
 
     return {
-      topIn: top((e) => e.transfers_in_event ?? 0),
-      topOut: top((e) => e.transfers_out_event ?? 0),
+      topIn: top((e) => e.transfers_in_event ?? 0).map((r) => ({ ...r, recent: tracker?.transfers_recent[r.id]?.[0], recentHours })),
+      topOut: top((e) => e.transfers_out_event ?? 0).map((r) => ({ ...r, recent: tracker?.transfers_recent[r.id]?.[1], recentHours })),
     };
-  }, [bootstrap, teamsById]);
+  }, [bootstrap, teamsById, tracker]);
 
   const { currentGw, currentCaptain, previousGw, previousCaptain } = useMemo(() => {
     const events: FplEvent[] = bootstrap?.events ?? [];
@@ -1271,7 +1321,7 @@ export default function PlayerStatsPage() {
             Transfers
             {currentGw && <span className="ml-2 text-sm font-medium text-slate-500">{currentGw.name}</span>}
           </h3>
-          <p className="text-xs text-slate-500">Refreshes every 24 hours</p>
+          <p className="text-xs text-slate-500">{dataUpdatedAt ? `Updated ${timeAgo(dataUpdatedAt, now)}` : 'Updating…'}</p>
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8">
           <TransferColumn direction="in" rows={topIn} />
@@ -1284,6 +1334,7 @@ export default function PlayerStatsPage() {
           elements={bootstrap?.elements ?? []}
           teamsById={teamsById}
           finishedGameweeks={(bootstrap?.events ?? []).filter((e) => e.finished).length}
+          priceChangedAt={tracker?.price_changed_at ?? {}}
         />
       </div>
 

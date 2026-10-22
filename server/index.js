@@ -8,6 +8,7 @@ import { loadIndex, addToIndex, addStandingsRows, searchIndex, getIndexSize, sav
 import { startTeamCrawler } from './team-crawler.js';
 import { renderPage, sitemapXml } from './seo.js';
 import { projectedBonus } from './bonus.js';
+import { startPlayerTracker, getPlayerTracker } from './player-tracker.js';
 import { loadLeagueIndex, addLeagueToIndex, searchLeaguesByName } from './league-index.js';
 import { startFplNews, getFplNews } from './fpl-news.js';
 import { startSquads, registerSquadRoutes } from './squads.js';
@@ -131,6 +132,8 @@ startSquads();
 
 // Team name search: weekly crawl of the Myanmar country league (plus every team people look up).
 startTeamCrawler();
+// Price-change times and 24h transfer momentum (FPL's data has no timestamps for these).
+startPlayerTracker();
 
 // Railway stops the old server with SIGTERM on each deploy: write any pending search-index changes first.
 process.on('SIGTERM', () => {
@@ -793,6 +796,12 @@ registerSquadRoutes(app);
 app.get('/api/fpl-news', (req, res) => {
   res.set('Cache-Control', 'public, max-age=60');
   res.json(getFplNews());
+});
+
+/** When prices changed and recent transfer momentum (see player-tracker.js). */
+app.get('/api/player-tracker', (req, res) => {
+  res.set('Cache-Control', 'public, max-age=60');
+  res.json(getPlayerTracker());
 });
 
 /** Cache hit rates and memory use, for checking the FPL cache is doing its job. */

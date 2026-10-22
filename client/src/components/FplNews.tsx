@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getFplNews } from '../api/fpl';
 import { useBootstrapStatic } from '../hooks/useFplApi';
 import { getPlayerImageUrl } from '../utils/playerPhoto';
+import { timeAgo } from '../utils/timeAgo';
 import { playerCardProps, usePlayerCard } from './PlayerCardProvider';
 import type { FplNewsPlayer } from '../types/fpl';
 
@@ -27,16 +28,6 @@ const STATUS: Record<string, { label: string; badge: string }> = {
 
 const POSITIONS: Record<number, string> = { 1: 'GKP', 2: 'DEF', 3: 'MID', 4: 'FWD' };
 const PAGE_SIZE = 24;
-
-/** "3 hours ago". */
-function timeAgo(iso: string): string {
-  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
-  if (mins < 60) return `${Math.max(1, mins)} min ago`;
-  const hours = Math.round(mins / 60);
-  if (hours < 24) return `${hours} hour${hours === 1 ? '' : 's'} ago`;
-  const days = Math.round(hours / 24);
-  return `${days} day${days === 1 ? '' : 's'} ago`;
-}
 
 function chanceTone(chance: number): string {
   if (chance === 0) return 'text-rose-300';

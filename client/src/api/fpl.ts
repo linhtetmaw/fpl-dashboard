@@ -122,6 +122,10 @@ export async function deleteSquad(id: string) {
   return sendJson<{ ok: boolean }>('DELETE', `${API_BASE}/squads/${encodeURIComponent(id)}`);
 }
 
+export async function getPlayerTracker() {
+  return fetchApi<import('../types/fpl').PlayerTrackerResponse>(`${API_BASE}/player-tracker`);
+}
+
 export async function getYoutubePlaylistItems(playlistId: string) {
   return fetchApi<{ playlistId: string; items: { videoId: string; title: string; published?: string; thumbnail?: string }[] }>(
     `${API_BASE}/youtube-playlist`,

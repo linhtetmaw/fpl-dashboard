@@ -334,3 +334,15 @@ export interface SavedSquad {
   start_gw: number | null;
   versions: SquadVersion[];
 }
+
+/** /api/player-tracker: what FPL doesn't timestamp, recorded by the server since `tracking_since`. */
+export interface PlayerTrackerResponse {
+  checked_at: string | null;
+  tracking_since: string | null;
+  /** element id → when its price last changed this gameweek. */
+  price_changed_at: Record<string, string>;
+  /** Hours covered by transfers_recent (up to 24; less right after tracking starts or a deadline). */
+  transfers_window_hours: number;
+  /** element id → [transfers in, transfers out] over that window. */
+  transfers_recent: Record<string, [number, number]>;
+}
