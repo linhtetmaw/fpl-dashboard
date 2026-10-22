@@ -160,7 +160,7 @@ function CaptainTile({
       {player ? (
         <div className="relative shrink-0">
           <PlayerPhoto url={player.photoUrl} name={player.name} className="h-9 w-9 sm:h-14 sm:w-14" />
-          <span className="absolute -bottom-1 -right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-fpl-brand font-display text-[9px] sm:text-[10px] font-bold text-fpl-dark ring-2 ring-fpl-card">
+          <span className="absolute -bottom-1 -right-1 flex h-4 w-4 sm:h-5 sm:w-5 items-center justify-center rounded-full bg-fpl-accent font-display text-[9px] sm:text-[10px] font-bold text-fpl-ink ring-2 ring-fpl-card">
             C
           </span>
         </div>
@@ -379,7 +379,7 @@ function StatLeadersCard({ elements, teamsById }: { elements: FplElement[]; team
             </span>
           </div>
           <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-fpl-border/60">
-            <div className="h-full rounded-full bg-fpl-brand/70" style={{ width: `${Math.max(4, (value / max) * 100)}%` }} />
+            <div className="h-full rounded-full bg-fpl-accent/70" style={{ width: `${Math.max(4, (value / max) * 100)}%` }} />
           </div>
         </div>
         <div className="w-[62px] shrink-0 text-right sm:w-[68px]">

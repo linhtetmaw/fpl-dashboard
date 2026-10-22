@@ -12,39 +12,49 @@ export default {
         myanmar: ['Noto Sans Myanmar', 'Myanmar Text', 'Padauk', 'system-ui', 'sans-serif'],
       },
       colors: {
+        /**
+         * Theme colours are CSS variables (RGB channels, so opacity modifiers like /15 still work). Dark values are
+         * the default; [data-theme='light'] swaps them (see index.css). Fixed colours below never change.
+         */
         fpl: {
-          /** Page background (deep FPL House purple). */
-          dark: '#13001a',
+          /** Page background. */
+          dark: 'rgb(var(--fpl-dark) / <alpha-value>)',
           /** Card / panel surface. */
-          card: '#1c0524',
+          card: 'rgb(var(--fpl-card) / <alpha-value>)',
           /** Raised surface inside a card (tiles, inputs, table headers). */
-          raised: '#270b30',
-          border: '#3a1842',
-          /** Filled buttons and active controls — Pitch Green; pair with text-fpl-purple. */
+          raised: 'rgb(var(--fpl-raised) / <alpha-value>)',
+          border: 'rgb(var(--fpl-border) / <alpha-value>)',
+          /** Filled buttons and active controls — bright Pitch Green in both themes; pair with text-fpl-purple/ink. */
           accent: '#00FF85',
           'accent-hover': '#00d970',
-          /** Pitch Green for text, highlights and points on dark surfaces. */
-          brand: '#00FF85',
-          /** Core brand purple (text on green, logo tile). */
+          /** Green for text and tints: Pitch Green on dark, a deeper green on light (bright green is unreadable on white). */
+          brand: 'rgb(var(--fpl-brand) / <alpha-value>)',
+          /** Core brand purple (text on green, logo tile). Fixed. */
           purple: '#37003C',
+          /** Dark text on bright fills (green, amber) in both themes. Fixed. */
+          ink: '#13001a',
+          /** Pure white that stays white in both themes (text on red/green badges, pitch markings). */
+          snow: '#ffffff',
           plum: '#6B4A70',
           mist: '#F5F2F6',
           pitch: '#0f3b24',
           'pitch-line': '#2b6a45',
         },
-        /** Neutrals re-tinted toward the brand purple, so every text-slate-* matches. */
+        /** "white" is the main text colour: white on dark, brand purple on light. Use fpl-snow for a fixed white. */
+        white: 'rgb(var(--c-white) / <alpha-value>)',
+        /** Purple-tinted neutrals; the scale reverses in light mode so text-slate-300 etc. stay readable. */
         slate: {
-          50: '#faf8fb',
-          100: '#f5f2f6',
-          200: '#e6dce8',
-          300: '#c9b3cc',
-          400: '#a68dab',
-          500: '#836a89',
-          600: '#6b4a70',
-          700: '#4f3354',
-          800: '#3a2140',
-          900: '#26112b',
-          950: '#170619',
+          50: 'rgb(var(--slate-50) / <alpha-value>)',
+          100: 'rgb(var(--slate-100) / <alpha-value>)',
+          200: 'rgb(var(--slate-200) / <alpha-value>)',
+          300: 'rgb(var(--slate-300) / <alpha-value>)',
+          400: 'rgb(var(--slate-400) / <alpha-value>)',
+          500: 'rgb(var(--slate-500) / <alpha-value>)',
+          600: 'rgb(var(--slate-600) / <alpha-value>)',
+          700: 'rgb(var(--slate-700) / <alpha-value>)',
+          800: 'rgb(var(--slate-800) / <alpha-value>)',
+          900: 'rgb(var(--slate-900) / <alpha-value>)',
+          950: 'rgb(var(--slate-950) / <alpha-value>)',
         },
       },
       boxShadow: {

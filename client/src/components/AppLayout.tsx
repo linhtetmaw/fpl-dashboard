@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Outlet, NavLink, Link, useLocation, useSearchParams } from 'react-router-dom';
 import { useBootstrapStatic } from '../hooks/useFplApi';
-import { ClockIcon, LogoMark, SwapIcon } from './icons';
+import { ClockIcon, LogoMark, MoonIcon, SunIcon, SwapIcon } from './icons';
+import { getTheme, setTheme, type Theme } from '../theme';
 import SEO_ROUTES from '../seo-routes.json';
 
 const TEAM_ID_KEY = 'fpl_team_id';
@@ -89,6 +90,12 @@ const PAGE_TITLES: Record<string, { title: string }> = SEO_ROUTES;
 
 export default function AppLayout() {
   const location = useLocation();
+  const [theme, setThemeState] = useState<Theme>(getTheme);
+  const toggleTheme = () => {
+    const next: Theme = theme === 'dark' ? 'light' : 'dark';
+    setTheme(next);
+    setThemeState(next);
+  };
 
   // Browser tab (and Google Analytics page) title per section; the server sets the same on first load (server/seo.js).
   useEffect(() => {
@@ -136,6 +143,15 @@ export default function AppLayout() {
             </div>
             <div className="flex items-center gap-2">
               <DeadlineChip className="hidden lg:inline-flex" />
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="btn-ghost px-2.5"
+                title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+                aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              >
+                {theme === 'dark' ? <SunIcon className="h-4 w-4" /> : <MoonIcon className="h-4 w-4" />}
+              </button>
               {hasTeam && (
                 <>
                   <button type="button" onClick={handleChangeTeam} className="btn-ghost px-2.5 sm:px-3" title="Change team">

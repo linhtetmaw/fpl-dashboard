@@ -113,7 +113,7 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
             {p.web_name.slice(0, 2).toUpperCase()}
           </div>
           {p.is_captain && (
-            <span className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-fpl-dark text-[9px] font-extrabold shadow">
+            <span className="absolute top-0.5 right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-fpl-snow text-fpl-ink text-[9px] font-extrabold shadow">
               C
             </span>
           )}
@@ -135,7 +135,7 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
         </p>
         <p
           className={`w-full py-0.5 text-center text-[10px] sm:text-[11px] font-bold tabular-nums ${
-            isReplaced ? 'bg-slate-600 text-white' : 'bg-fpl-brand text-fpl-dark'
+            isReplaced ? 'bg-slate-600 text-white' : 'bg-fpl-accent text-fpl-ink'
           }`}
         >
           {isReplaced ? 'Did not play' : `${p.total_points_effective} pts`}
@@ -184,11 +184,11 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
             'repeating-linear-gradient(180deg, rgba(255,255,255,0.035) 0 38px, transparent 38px 76px), radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.06), transparent 60%)',
         }}
       >
-        <div className="pointer-events-none absolute inset-3 sm:inset-4 rounded-sm border border-white/15" />
-        <div className="pointer-events-none absolute left-3 right-3 sm:left-4 sm:right-4 top-1/2 h-px bg-white/15" />
-        <div className="pointer-events-none absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/15" />
-        <div className="pointer-events-none absolute left-1/2 top-3 sm:top-4 h-12 w-2/5 -translate-x-1/2 border border-t-0 border-white/15" />
-        <div className="pointer-events-none absolute left-1/2 bottom-3 sm:bottom-4 h-12 w-2/5 -translate-x-1/2 border border-b-0 border-white/15" />
+        <div className="pointer-events-none absolute inset-3 sm:inset-4 rounded-sm border border-fpl-snow/15" />
+        <div className="pointer-events-none absolute left-3 right-3 sm:left-4 sm:right-4 top-1/2 h-px bg-fpl-snow/15" />
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-fpl-snow/15" />
+        <div className="pointer-events-none absolute left-1/2 top-3 sm:top-4 h-12 w-2/5 -translate-x-1/2 border border-t-0 border-fpl-snow/15" />
+        <div className="pointer-events-none absolute left-1/2 bottom-3 sm:bottom-4 h-12 w-2/5 -translate-x-1/2 border border-b-0 border-fpl-snow/15" />
 
         <div className={rowClass}>{(fwdRow ?? []).map((p) => renderPlayerCard(p, {}))}</div>
         <div className={rowClass}>{(midRow ?? []).map((p) => renderPlayerCard(p, {}))}</div>

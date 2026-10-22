@@ -150,7 +150,7 @@ export default function SquadPoints({ squad, bootstrap }: SquadPointsProps) {
                 type="button"
                 onClick={() => setGw(g)}
                 className={`flex w-full items-center justify-between px-4 py-2.5 text-sm transition-colors hover:bg-white/[0.03] ${
-                  g === gw ? 'bg-fpl-brand/10 shadow-[inset_3px_0_0_0_#f37025]' : ''
+                  g === gw ? 'bg-fpl-brand/10 shadow-[inset_3px_0_0_0_#00FF85]' : ''
                 }`}
               >
                 <span className="text-slate-300">

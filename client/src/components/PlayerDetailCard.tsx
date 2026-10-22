@@ -32,7 +32,7 @@ function formatPrice(cost: number | undefined): string {
 
 /** Tint a recent-GW points tile: blanks muted, big hauls highlighted. */
 function pointsTone(points: number): string {
-  if (points >= 10) return 'bg-fpl-brand text-fpl-dark';
+  if (points >= 10) return 'bg-fpl-accent text-fpl-ink';
   if (points >= 6) return 'bg-fpl-brand/25 text-fpl-brand';
   if (points <= 2) return 'bg-fpl-dark/80 text-slate-500';
   return 'bg-fpl-dark/80 text-white';

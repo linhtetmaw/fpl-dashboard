@@ -81,7 +81,7 @@ export default function TeamSummary({
       {/* Phones: name and GW picker share one row, stats in a single compact row. sm+ is unchanged. */}
       <div className="flex flex-row items-center justify-between gap-2 sm:gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <div className="hidden sm:flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-fpl-brand font-display text-lg font-bold text-fpl-purple">
+          <div className="hidden sm:flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-fpl-accent font-display text-lg font-bold text-fpl-purple">
             {initials || 'FH'}
           </div>
           <div className="min-w-0">

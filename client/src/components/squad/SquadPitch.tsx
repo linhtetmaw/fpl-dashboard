@@ -79,7 +79,7 @@ export default function SquadPitch({
           <div className="relative h-14 w-12 overflow-hidden rounded-t-md sm:h-[66px] sm:w-[56px]">
             <PlayerPhoto element={el} teamName={teamName(el.team)} />
             {!removable && draft.captain === id && (
-              <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-white text-[9px] font-extrabold text-fpl-dark shadow">
+              <span className="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-fpl-snow text-[9px] font-extrabold text-fpl-ink shadow">
                 C
               </span>
             )}
@@ -93,7 +93,7 @@ export default function SquadPitch({
           <p className="w-full truncate bg-fpl-dark/95 px-1 py-0.5 text-center text-[10px] font-semibold text-white sm:text-[11px]">
             {el.web_name}
           </p>
-          <p className="w-full truncate bg-white/90 py-0.5 text-center text-[10px] font-semibold tabular-nums text-fpl-dark sm:text-[11px]">
+          <p className="w-full truncate bg-fpl-snow/90 py-0.5 text-center text-[10px] font-semibold tabular-nums text-fpl-ink sm:text-[11px]">
             {mode === 'transfers' ? `£${(priceOf(id) / 10).toFixed(1)}` : nextFixture(el.team) || '—'}
           </p>
         </button>
@@ -101,7 +101,7 @@ export default function SquadPitch({
           <button
             type="button"
             onClick={() => onRemove(id)}
-            className="absolute -right-1.5 -top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 text-sm font-bold leading-none text-white shadow ring-2 ring-[#0f3b24] transition-colors hover:bg-rose-500 focus:outline-none focus-visible:ring-white"
+            className="absolute -right-1.5 -top-1.5 z-10 flex h-5 w-5 items-center justify-center rounded-full bg-rose-600 text-sm font-bold leading-none text-fpl-snow shadow ring-2 ring-[#0f3b24] transition-colors hover:bg-rose-500 focus:outline-none focus-visible:ring-white"
             aria-label={`Remove ${el.web_name}`}
             title={`Remove ${el.web_name}`}
           >
@@ -117,7 +117,7 @@ export default function SquadPitch({
       type="button"
       key={key}
       onClick={() => onEmptySlot(type)}
-      className="flex h-[88px] w-[60px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-white/35 bg-black/15 text-white/70 transition-colors hover:border-white/70 hover:bg-black/25 hover:text-white sm:h-[102px] sm:w-[76px]"
+      className="flex h-[88px] w-[60px] shrink-0 flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-fpl-snow/35 bg-black/15 text-fpl-snow/70 transition-colors hover:border-fpl-snow/70 hover:bg-black/25 hover:text-fpl-snow sm:h-[102px] sm:w-[76px]"
       aria-label={`Add ${POSITION_SHORT[type]}`}
     >
       <span className="text-xl leading-none">+</span>
@@ -149,11 +149,11 @@ export default function SquadPitch({
             'repeating-linear-gradient(180deg, rgba(255,255,255,0.035) 0 38px, transparent 38px 76px), radial-gradient(ellipse at 50% 0%, rgba(255,255,255,0.06), transparent 60%)',
         }}
       >
-        <div className="pointer-events-none absolute inset-3 rounded-sm border border-white/15 sm:inset-4" />
-        <div className="pointer-events-none absolute left-3 right-3 top-1/2 h-px bg-white/15 sm:left-4 sm:right-4" />
-        <div className="pointer-events-none absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-white/15" />
-        <div className="pointer-events-none absolute left-1/2 top-3 h-12 w-2/5 -translate-x-1/2 border border-t-0 border-white/15 sm:top-4" />
-        <div className="pointer-events-none absolute bottom-3 left-1/2 h-12 w-2/5 -translate-x-1/2 border border-b-0 border-white/15 sm:bottom-4" />
+        <div className="pointer-events-none absolute inset-3 rounded-sm border border-fpl-snow/15 sm:inset-4" />
+        <div className="pointer-events-none absolute left-3 right-3 top-1/2 h-px bg-fpl-snow/15 sm:left-4 sm:right-4" />
+        <div className="pointer-events-none absolute left-1/2 top-1/2 h-20 w-20 -translate-x-1/2 -translate-y-1/2 rounded-full border border-fpl-snow/15" />
+        <div className="pointer-events-none absolute left-1/2 top-3 h-12 w-2/5 -translate-x-1/2 border border-t-0 border-fpl-snow/15 sm:top-4" />
+        <div className="pointer-events-none absolute bottom-3 left-1/2 h-12 w-2/5 -translate-x-1/2 border border-b-0 border-fpl-snow/15 sm:bottom-4" />
         {rows.map((row, i) => (
           <div key={i} className="relative flex justify-center gap-1.5 sm:gap-3">
             {row}

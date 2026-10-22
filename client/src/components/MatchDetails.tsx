@@ -86,7 +86,7 @@ export default function MatchDetails({ fixture: f, elementsById, teams }: MatchD
                 <li key={r.element} className="flex items-center gap-2 text-xs">
                   <span
                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded font-display text-[11px] font-bold ${
-                      b > 0 ? 'bg-amber-400 text-fpl-dark' : 'bg-fpl-raised text-slate-600'
+                      b > 0 ? 'bg-amber-400 text-fpl-ink' : 'bg-fpl-raised text-slate-600'
                     }`}
                     title={b > 0 ? `${b} bonus point${b === 1 ? '' : 's'}${awarded ? '' : ' (projected)'}` : 'No bonus'}
                   >
@@ -120,7 +120,7 @@ export default function MatchDetails({ fixture: f, elementsById, teams }: MatchD
                 <li key={r.element} className="flex items-center gap-2 text-xs">
                   <span
                     className={`flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-bold ${
-                      done ? 'bg-emerald-500 text-fpl-dark' : 'bg-fpl-raised text-slate-500'
+                      done ? 'bg-emerald-500 text-fpl-ink' : 'bg-fpl-raised text-slate-500'
                     }`}
                   >
                     {done ? '✓' : '…'}

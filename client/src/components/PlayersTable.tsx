@@ -46,7 +46,7 @@ export default function PlayersTable({ players }: PlayersTableProps) {
         <div className="flex items-center gap-2">
           <span className="font-medium text-slate-100">{p.web_name}</span>
           {p.is_captain && (
-            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-white text-fpl-dark text-[9px] font-extrabold" title="Captain">
+            <span className="flex h-4 w-4 items-center justify-center rounded-full bg-fpl-snow text-fpl-ink ring-1 ring-fpl-border text-[9px] font-extrabold" title="Captain">
               C
             </span>
           )}

@@ -11,6 +11,18 @@
       gtag('config', 'G-TQ2V2Q97YW');
     </script>
     <meta charset="UTF-8" />
+    <!-- Apply a saved light theme before first paint (dark is the default), so the page never flashes. -->
+    <script>
+      try {
+        if (localStorage.getItem('fpl_theme') === 'light') {
+          document.documentElement.dataset.theme = 'light';
+          document.addEventListener('DOMContentLoaded', function () {
+            var m = document.querySelector('meta[name="theme-color"]');
+            if (m) m.setAttribute('content', '#F5F2F6');
+          });
+        }
+      } catch (e) {}
+    </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />

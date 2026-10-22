@@ -2,21 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Theme colours as RGB channels (used by tailwind.config.js). Dark is the default; light is opt-in (header toggle). */
 :root {
-  --fpl-bg: #13001a;
-  --fpl-card: #1c0524;
-  --fpl-border: #3a1842;
+  --fpl-dark: 19 0 26; /* #13001a */
+  --fpl-card: 28 5 36; /* #1c0524 */
+  --fpl-raised: 39 11 48; /* #270b30 */
+  --fpl-border: 58 24 66; /* #3a1842 */
+  --fpl-brand: 0 255 133; /* #00FF85 */
+  --c-white: 255 255 255;
+  --slate-50: 250 248 251;
+  --slate-100: 245 242 246;
+  --slate-200: 230 220 232;
+  --slate-300: 201 179 204;
+  --slate-400: 166 141 171;
+  --slate-500: 131 106 137;
+  --slate-600: 107 74 112;
+  --slate-700: 79 51 84;
+  --slate-800: 58 33 64;
+  --slate-900: 38 17 43;
+  --slate-950: 23 6 25;
+  /* Plain colour values for non-Tailwind CSS (body, scrollbars). */
+  --fpl-bg: rgb(var(--fpl-dark));
+  --fpl-border-color: rgb(var(--fpl-border));
+  --page-glow: rgba(107, 74, 112, 0.35);
+  --page-glow-2: rgba(0, 255, 133, 0.07);
   color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  --fpl-dark: 245 242 246; /* page #F5F2F6 */
+  --fpl-card: 255 255 255;
+  --fpl-raised: 247 243 248; /* #F7F3F8 */
+  --fpl-border: 230 220 232; /* #E6DCE8 */
+  --fpl-brand: 0 135 74; /* #00874A — readable green text on white */
+  --c-white: 55 0 60; /* brand purple #37003C */
+  --slate-50: 23 6 25;
+  --slate-100: 42 10 48;
+  --slate-200: 55 0 60;
+  --slate-300: 79 51 84;
+  --slate-400: 107 74 112;
+  --slate-500: 131 106 137;
+  --slate-600: 166 141 171;
+  --slate-700: 201 179 204;
+  --slate-800: 230 220 232;
+  --slate-900: 245 242 246;
+  --slate-950: 250 248 251;
+  --page-glow: rgba(107, 74, 112, 0.10);
+  --page-glow-2: rgba(0, 200, 110, 0.06);
+  color-scheme: light;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
   background:
-    radial-gradient(1200px 420px at 50% -200px, rgba(107, 74, 112, 0.35), transparent 70%),
-    radial-gradient(600px 240px at 85% -120px, rgba(0, 255, 133, 0.07), transparent 70%),
+    radial-gradient(1200px 420px at 50% -200px, var(--page-glow), transparent 70%),
+    radial-gradient(600px 240px at 85% -120px, var(--page-glow-2), transparent 70%),
     var(--fpl-bg);
-  color: #e6dce8;
+  color: rgb(var(--slate-200));
   font-family: 'Inter', system-ui, sans-serif;
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
@@ -68,7 +111,7 @@ body {
 .players-news-scroll {
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--fpl-border) transparent;
+  scrollbar-color: var(--fpl-border-color) transparent;
 }
 .players-news-scroll::-webkit-scrollbar {
   width: 8px;
@@ -77,7 +120,7 @@ body {
   background: transparent;
 }
 .players-news-scroll::-webkit-scrollbar-thumb {
-  background: var(--fpl-border);
+  background: var(--fpl-border-color);
   border-radius: 4px;
 }
 .players-news-scroll::-webkit-scrollbar-thumb:hover {
@@ -89,7 +132,7 @@ body {
   overflow-y: auto;
   overflow-x: auto;
   scrollbar-width: thin;
-  scrollbar-color: var(--fpl-border) transparent;
+  scrollbar-color: var(--fpl-border-color) transparent;
 }
 .league-table-scroll::-webkit-scrollbar {
   width: 8px;
@@ -99,7 +142,7 @@ body {
   background: transparent;
 }
 .league-table-scroll::-webkit-scrollbar-thumb {
-  background: var(--fpl-border);
+  background: var(--fpl-border-color);
   border-radius: 4px;
 }
 .league-table-scroll::-webkit-scrollbar-thumb:hover {
@@ -119,7 +162,7 @@ body {
   width: 6px;
 }
 .player-stats-scroll::-webkit-scrollbar-thumb {
-  background: var(--fpl-border);
+  background: var(--fpl-border-color);
   border-radius: 3px;
 }
 
@@ -178,4 +221,29 @@ body {
   .live-dot {
     animation: none;
   }
+}
+
+/* Light theme: status colours written for dark backgrounds (e.g. text-amber-300) are too pale on white,
+   so swap them for darker shades of the same hue. */
+:root[data-theme='light'] .text-emerald-200,
+:root[data-theme='light'] .text-emerald-300,
+:root[data-theme='light'] .text-emerald-400 { color: #047857; }
+:root[data-theme='light'] .text-amber-200,
+:root[data-theme='light'] .text-amber-300,
+:root[data-theme='light'] .text-amber-400 { color: #B45309; }
+:root[data-theme='light'] .text-yellow-200 { color: #A16207; }
+:root[data-theme='light'] .text-rose-200,
+:root[data-theme='light'] .text-rose-300,
+:root[data-theme='light'] .text-rose-300\/80,
+:root[data-theme='light'] .text-rose-400,
+:root[data-theme='light'] .text-rose-500,
+:root[data-theme='light'] .text-red-200,
+:root[data-theme='light'] .text-red-300,
+:root[data-theme='light'] .text-red-400 { color: #BE123C; }
+:root[data-theme='light'] .text-sky-300 { color: #0369A1; }
+:root[data-theme='light'] .select-arrow-white {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2337003C'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'/%3E%3C/svg%3E");
+}
+:root[data-theme='light'] .card {
+  box-shadow: 0 1px 2px rgba(55, 0, 60, 0.06), 0 8px 24px -16px rgba(55, 0, 60, 0.18);
 }
