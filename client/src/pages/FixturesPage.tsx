@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useBootstrapStatic, useFixtures, useAllFixtures, getCurrentEvent } from '../hooks/useFplApi';
 import type { FplFixture, FplTeam } from '../types/fpl';
+import { isFixtureLive } from '../utils/fixtureStatus';
+import LiveBadge from '../components/LiveBadge';
 
 /** Solid FDR fills, tuned for the dark surface (text colour chosen per fill for contrast). */
 const FDR_FILL: Record<number, string> = {
@@ -101,8 +103,8 @@ function FixtureRow({ fixture: f, teams, timezone }: { fixture: FplFixture; team
   const home = teams.get(f.team_h);
   const away = teams.get(f.team_a);
   const done = f.finished || f.finished_provisional;
-  const live = !done && f.team_h_score != null && f.team_a_score != null;
-  const hasScore = done || live;
+  const live = isFixtureLive(f);
+  const hasScore = done || (live && f.team_h_score != null && f.team_a_score != null);
 
   return (
     <li className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 px-3 sm:px-4 py-3 transition-colors hover:bg-fpl-raised/40">
@@ -130,10 +132,10 @@ function FixtureRow({ fixture: f, teams, timezone }: { fixture: FplFixture; team
             {formatTime(f.kickoff_time, timezone)}
           </span>
         )}
-        {hasScore && (
-          <span className={`mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] ${live ? 'text-fpl-brand' : 'text-slate-500'}`}>
-            {live ? 'Live' : 'FT'}
-          </span>
+        {live ? (
+          <LiveBadge label={f.minutes ? `Live ${f.minutes}′` : 'Live'} className="mt-1" />
+        ) : (
+          hasScore && <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">FT</span>
         )}
       </div>
 

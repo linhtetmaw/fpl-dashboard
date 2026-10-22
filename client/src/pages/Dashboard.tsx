@@ -4,6 +4,7 @@ import { useBootstrapStatic, useEntry, useTeamPicks, useEventLive, useEntryHisto
 import TeamSearchPage from './TeamSearchPage';
 import TeamSummary from '../components/TeamSummary';
 import PitchView from '../components/PitchView';
+import { anyFixtureLive } from '../utils/fixtureStatus';
 import PlayersTable from '../components/PlayersTable';
 import LeagueSelector from '../components/LeagueSelector';
 
@@ -49,9 +50,10 @@ export default function Dashboard() {
   const effectiveGw = gameweek ?? defaultGw ?? 1;
 
   const { data: picks, isLoading: picksLoading } = useTeamPicks(resolvedTeamId, effectiveGw);
-  const { data: live, isLoading: liveLoading } = useEventLive(effectiveGw);
-  const { data: entryHistory } = useEntryHistory(resolvedTeamId);
   const { data: fixtures, isLoading: fixturesLoading } = useFixtures(effectiveGw);
+  // While a match in this gameweek is on, live points re-fetch every minute (fixtures do the same, see useFixtures).
+  const { data: live, isLoading: liveLoading } = useEventLive(effectiveGw, anyFixtureLive(fixtures));
+  const { data: entryHistory } = useEntryHistory(resolvedTeamId);
 
   const teamSummary = useMemo(() => {
     if (!resolvedTeamId || !bootstrap || !picks || !live || fixturesLoading) return null;
@@ -179,6 +181,7 @@ export default function Dashboard() {
                         effectivePitchPlayers={teamSummary.effectivePitchPlayers}
                         effectiveBench={teamSummary.effectiveBench}
                         replacedStarters={teamSummary.replacedStarters}
+                        fixtures={fixtures ?? null}
                       />
                     </div>
                   </div>

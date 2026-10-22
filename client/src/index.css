@@ -161,3 +161,21 @@ body {
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
+
+/* Blinking dot for live matches / players in play. */
+@keyframes live-blink {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.25;
+  }
+}
+.live-dot {
+  animation: live-blink 1.2s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot {
+    animation: none;
+  }
+}

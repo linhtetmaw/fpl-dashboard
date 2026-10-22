@@ -132,6 +132,7 @@ export default function SquadPoints({ squad, bootstrap }: SquadPointsProps) {
           effectivePitchPlayers={summary.effectivePitchPlayers}
           effectiveBench={summary.effectiveBench}
           replacedStarters={summary.replacedStarters}
+          fixtures={(fixtures ?? []).filter((f) => f.event === gw)}
         />
       ) : (
         <div className="card h-96 animate-pulse" />

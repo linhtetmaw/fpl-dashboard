@@ -116,6 +116,10 @@ export interface FplFixture {
   finished: boolean;
   /** True once the final whistle has gone (before bonus is confirmed and `finished` flips). */
   finished_provisional?: boolean;
+  /** True once the match has kicked off. */
+  started?: boolean;
+  /** Minutes played so far (live) or 90 when finished. */
+  minutes?: number;
   team_h_difficulty?: number;
   team_a_difficulty?: number;
 }

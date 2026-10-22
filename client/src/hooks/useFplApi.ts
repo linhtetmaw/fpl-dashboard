@@ -17,6 +17,7 @@ import {
   getFixtures,
   getElementSummary,
 } from '../api/fpl';
+import { anyFixtureLive } from '../utils/fixtureStatus';
 
 const BOOTSTRAP_QUERY_KEY = ['fpl', 'bootstrap-static'] as const;
 const ENTRY_QUERY_KEY = ['fpl', 'entry'] as const;
@@ -50,11 +51,13 @@ export function useTeamPicks(teamId: number | null, gameweek: number | null) {
   });
 }
 
-export function useEventLive(gameweek: number | null) {
+/** Live points for a gameweek. Pass `matchesInPlay` to re-fetch every minute while games are being played. */
+export function useEventLive(gameweek: number | null, matchesInPlay = false) {
   return useQuery({
     queryKey: [...LIVE_QUERY_KEY, gameweek],
     queryFn: () => getEventLive(gameweek!),
     enabled: gameweek != null && gameweek > 0,
+    refetchInterval: matchesInPlay ? 60 * 1000 : false,
   });
 }
 
@@ -82,6 +85,8 @@ export function useFixtures(gameweek: number | null) {
     queryFn: () => getFixtures(gameweek ?? undefined),
     enabled: gameweek != null && gameweek > 0,
     staleTime: 2 * 60 * 1000,
+    // Keep scores, minutes and "in play" badges current while a match is on (the server caches FPL for 2 min).
+    refetchInterval: (query) => (anyFixtureLive(query.state.data) ? 60 * 1000 : false),
   });
 }
 

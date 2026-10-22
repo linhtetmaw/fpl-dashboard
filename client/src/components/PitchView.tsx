@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { PlayerPoints } from '../types/fpl';
-import type { BootstrapStatic, FplElement } from '../types/fpl';
+import type { BootstrapStatic, FplElement, FplFixture } from '../types/fpl';
+import { isFixtureLive } from '../utils/fixtureStatus';
+import LiveBadge from './LiveBadge';
 import PlayerDetailCard from './PlayerDetailCard';
 import { getPlayerImageUrl } from '../utils/playerPhoto';
 import { getAvailability } from '../utils/availability';
@@ -30,9 +32,13 @@ interface PitchViewProps {
   effectiveBench?: PlayerPoints[];
   /** Starters who did not play and were replaced; show their cards on the bench (non-starting players moved to bench). */
   replacedStarters?: PlayerPoints[];
+  /** Fixtures of the gameweek shown: adds each player's opponent and an "In play" badge while their match is on. */
+  fixtures?: FplFixture[] | null;
 }
 
-export default function PitchView({ players, bootstrap, effectivePitchPlayers, effectiveBench, replacedStarters }: PitchViewProps) {
+type ClubFixture = { opponent: number; home: boolean; live: boolean };
+
+export default function PitchView({ players, bootstrap, effectivePitchPlayers, effectiveBench, replacedStarters, fixtures }: PitchViewProps) {
   const [selectedElementId, setSelectedElementId] = useState<number | null>(null);
   const pitchPlayers = effectivePitchPlayers?.length === 11 ? effectivePitchPlayers : players.filter((p) => !p.is_on_bench).sort((a, b) => a.position - b.position);
   const hasEffective = effectivePitchPlayers?.length === 11;
@@ -48,6 +54,15 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
     (bootstrap?.teams ?? []).map((t) => [t.id, t.name])
   );
 
+  const shortById = new Map<number, string>((bootstrap?.teams ?? []).map((t) => [t.id, t.short_name ?? t.name.slice(0, 3).toUpperCase()]));
+  /** Each club's matches this gameweek (two in a double gameweek, none in a blank). */
+  const fixturesByClub = new Map<number, ClubFixture[]>();
+  for (const f of [...(fixtures ?? [])].sort((a, b) => (a.kickoff_time ?? '').localeCompare(b.kickoff_time ?? ''))) {
+    const live = isFixtureLive(f);
+    fixturesByClub.set(f.team_h, [...(fixturesByClub.get(f.team_h) ?? []), { opponent: f.team_a, home: true, live }]);
+    fixturesByClub.set(f.team_a, [...(fixturesByClub.get(f.team_a) ?? []), { opponent: f.team_h, home: false, live }]);
+  }
+
   const bench = benchPlayers;
   const selectedElement = selectedElementId != null ? elementById.get(selectedElementId) : null;
   const selectedTeamName = selectedElement != null ? teamById.get(selectedElement.team) : undefined;
@@ -58,6 +73,9 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
     const imageUrl = getPlayerImageUrl(element, teamName);
     const isSub = p.is_substitute === true;
     const availability = getAvailability(element);
+    const clubFixtures = fixtures && element ? fixturesByClub.get(element.team) ?? [] : null;
+    const inPlay = clubFixtures?.some((f) => f.live) ?? false;
+    const opponents = clubFixtures?.map((f) => `${shortById.get(f.opponent) ?? '?'} (${f.home ? 'H' : 'A'})`).join(', ');
     return (
       <button
         type="button"
@@ -105,6 +123,7 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
             </span>
           )}
           {availability && <AvailabilityBadge availability={availability} className={`absolute left-0.5 ${isSub ? 'top-4' : 'top-0.5'}`} />}
+          {inPlay && <LiveBadge label="In play" className="absolute bottom-0.5 left-1/2 -translate-x-1/2 whitespace-nowrap !text-[8px]" />}
         </div>
         <p className="w-full truncate bg-fpl-dark/95 px-1 py-0.5 text-center text-[10px] sm:text-[11px] font-semibold text-white">
           {p.web_name}
@@ -116,6 +135,14 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
         >
           {isReplaced ? 'Did not play' : `${p.total_points_effective} pts`}
         </p>
+        {clubFixtures && (
+          <p
+            className="w-full truncate rounded-b-md bg-fpl-dark/80 px-1 py-px text-center text-[9px] sm:text-[10px] font-medium text-slate-300"
+            title={opponents || 'No match this gameweek'}
+          >
+            {opponents || 'No match'}
+          </p>
+        )}
       </button>
     );
   };
