@@ -73,6 +73,15 @@ In Railway use:
 
 ---
 
+## Smoke test (runs before every push)
+
+`scripts/smoke-test.sh` builds what's committed, removes everything Railway's runtime container doesn't have (only `server/` and `client/dist` stay), starts the server and checks the key pages. It runs:
+
+- **Before each push** via `.githooks/pre-push` — a failure stops the push. On a new clone, enable it once with `git config core.hooksPath .githooks`. Skip once (emergencies only) with `git push --no-verify`.
+- **On GitHub** for every push/PR to `main` (`.github/workflows/smoke-test.yml`). In Railway → service → **Settings → Source**, turn on **Wait for CI** so a failed check stops the deploy.
+
+Run it by hand any time: `bash scripts/smoke-test.sh` (or `bash scripts/smoke-test.sh <commit>` to test a specific commit).
+
 ## Go-live checklist (custom domain)
 
 1. **Railway → Settings → Networking → Custom Domain:** add your domain (e.g. `fplhouse.com`, and `www.fplhouse.com` if you want it) and create the DNS records Railway shows you at your domain registrar. Railway issues the HTTPS certificate automatically.

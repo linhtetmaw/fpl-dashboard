@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Runs the smoke test (scripts/smoke-test.sh) before every push: builds what's committed, starts it like
+# Railway's container does and checks key pages. A failure stops the push. Skip once with: git push --no-verify
+# Enabled with: git config core.hooksPath .githooks
+set -e
+echo "pre-push: running smoke test (about 5s)…"
+if ! bash "$(git rev-parse --show-toplevel)/scripts/smoke-test.sh"; then
+  echo "" >&2
+  echo "Push stopped: the app would not start or serve pages in production. Fix the error above and push again." >&2
+  exit 1
+fi

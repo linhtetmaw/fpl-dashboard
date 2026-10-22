@@ -1,0 +1,23 @@
+# Same smoke test as the local pre-push hook, for every push and pull request to main.
+# Turn on Railway → Service → Settings → "Wait for CI" so a failed check stops the deploy.
+name: Smoke test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install dependencies
+        run: npm run install:all
+      - name: Smoke test (build, start like production, check pages)
+        run: bash scripts/smoke-test.sh
