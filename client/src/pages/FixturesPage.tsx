@@ -1,9 +1,10 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useBootstrapStatic, useFixtures, useAllFixtures, getCurrentEvent } from '../hooks/useFplApi';
-import type { FplFixture, FplTeam } from '../types/fpl';
+import type { FplElement, FplFixture, FplTeam } from '../types/fpl';
 import { isFixtureLive } from '../utils/fixtureStatus';
 import LiveBadge from '../components/LiveBadge';
+import MatchDetails from '../components/MatchDetails';
 
 /** Solid FDR fills, tuned for the dark surface (text colour chosen per fill for contrast). */
 const FDR_FILL: Record<number, string> = {
@@ -99,53 +100,91 @@ function ChevronIcon({ direction }: { direction: 'left' | 'right' }) {
   );
 }
 
-function FixtureRow({ fixture: f, teams, timezone }: { fixture: FplFixture; teams: Map<number, FplTeam>; timezone: string }) {
+function FixtureRow({
+  fixture: f,
+  teams,
+  timezone,
+  elementsById,
+}: {
+  fixture: FplFixture;
+  teams: Map<number, FplTeam>;
+  timezone: string;
+  elementsById: Map<number, FplElement>;
+}) {
   const home = teams.get(f.team_h);
   const away = teams.get(f.team_a);
   const done = f.finished || f.finished_provisional;
   const live = isFixtureLive(f);
   const hasScore = done || (live && f.team_h_score != null && f.team_a_score != null);
+  /** Started matches open to show bonus, defensive contribution and player points. */
+  const expandable = Boolean(f.started || done);
+  const [open, setOpen] = useState(false);
 
   return (
-    <li className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 px-3 sm:px-4 py-3 transition-colors hover:bg-fpl-raised/40">
-      <div className="flex items-center justify-end gap-2 sm:gap-3 min-w-0">
-        <span className="truncate text-right text-sm font-medium text-white">
-          <span className="sm:hidden">{home?.short_name ?? home?.name}</span>
-          <span className="hidden sm:inline">{home?.name ?? `Team ${f.team_h}`}</span>
-        </span>
-        <TeamBadge teamId={f.team_h} className="h-7 w-7 sm:h-8 sm:w-8" />
-      </div>
+    <li>
+      <div
+        role={expandable ? 'button' : undefined}
+        tabIndex={expandable ? 0 : undefined}
+        aria-expanded={expandable ? open : undefined}
+        onClick={expandable ? () => setOpen((o) => !o) : undefined}
+        onKeyDown={expandable ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpen((o) => !o)) : undefined}
+        title={expandable ? (open ? 'Hide match details' : 'Show bonus, defensive contribution and points') : undefined}
+        className={`relative grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 px-3 sm:px-4 py-3 transition-colors hover:bg-fpl-raised/40 ${
+          expandable ? 'cursor-pointer' : ''
+        } ${open ? 'bg-fpl-raised/40' : ''}`}
+      >
+        <div className="flex items-center justify-end gap-2 sm:gap-3 min-w-0">
+          <span className="truncate text-right text-sm font-medium text-white">
+            <span className="sm:hidden">{home?.short_name ?? home?.name}</span>
+            <span className="hidden sm:inline">{home?.name ?? `Team ${f.team_h}`}</span>
+          </span>
+          <TeamBadge teamId={f.team_h} className="h-7 w-7 sm:h-8 sm:w-8" />
+        </div>
 
-      <div className="flex flex-col items-center w-[4.5rem] sm:w-20">
-        {hasScore ? (
-          <span
-            className={`inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1 font-display text-sm font-bold tabular-nums ${
-              live ? 'bg-fpl-brand/15 text-fpl-brand ring-1 ring-fpl-brand/40' : 'bg-fpl-raised text-white ring-1 ring-fpl-border'
-            }`}
+        <div className="flex flex-col items-center w-[4.5rem] sm:w-20">
+          {hasScore ? (
+            <span
+              className={`inline-flex items-center justify-center gap-1.5 rounded-md px-2.5 py-1 font-display text-sm font-bold tabular-nums ${
+                live ? 'bg-fpl-brand/15 text-fpl-brand ring-1 ring-fpl-brand/40' : 'bg-fpl-raised text-white ring-1 ring-fpl-border'
+              }`}
+            >
+              {f.team_h_score}
+              <span className="text-slate-500 font-normal">–</span>
+              {f.team_a_score}
+            </span>
+          ) : (
+            <span className="inline-flex items-center justify-center rounded-md border border-fpl-border px-2.5 py-1 text-sm font-medium tabular-nums text-slate-200">
+              {formatTime(f.kickoff_time, timezone)}
+            </span>
+          )}
+          {live ? (
+            <LiveBadge label={f.minutes ? `Live ${f.minutes}′` : 'Live'} className="mt-1" />
+          ) : (
+            hasScore && <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">FT</span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <TeamBadge teamId={f.team_a} className="h-7 w-7 sm:h-8 sm:w-8" />
+          <span className="truncate text-sm font-medium text-white">
+            <span className="sm:hidden">{away?.short_name ?? away?.name}</span>
+            <span className="hidden sm:inline">{away?.name ?? `Team ${f.team_a}`}</span>
+          </span>
+        </div>
+        {expandable && (
+          <svg
+            viewBox="0 0 24 24"
+            className={`absolute right-2 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-500 transition-transform sm:right-3 ${open ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={2}
+            aria-hidden
           >
-            {f.team_h_score}
-            <span className="text-slate-500 font-normal">–</span>
-            {f.team_a_score}
-          </span>
-        ) : (
-          <span className="inline-flex items-center justify-center rounded-md border border-fpl-border px-2.5 py-1 text-sm font-medium tabular-nums text-slate-200">
-            {formatTime(f.kickoff_time, timezone)}
-          </span>
-        )}
-        {live ? (
-          <LiveBadge label={f.minutes ? `Live ${f.minutes}′` : 'Live'} className="mt-1" />
-        ) : (
-          hasScore && <span className="mt-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-500">FT</span>
+            <path d="M6 9l6 6 6-6" />
+          </svg>
         )}
       </div>
-
-      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-        <TeamBadge teamId={f.team_a} className="h-7 w-7 sm:h-8 sm:w-8" />
-        <span className="truncate text-sm font-medium text-white">
-          <span className="sm:hidden">{away?.short_name ?? away?.name}</span>
-          <span className="hidden sm:inline">{away?.name ?? `Team ${f.team_a}`}</span>
-        </span>
-      </div>
+      {open && <MatchDetails fixture={f} elementsById={elementsById} teams={teams} />}
     </li>
   );
 }
@@ -173,6 +212,7 @@ export default function FixturesPage() {
   const { data: fixtures, isLoading, error } = useFixtures(effectiveGw);
 
   const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
+  const elementsById = useMemo(() => new Map((bootstrap?.elements ?? []).map((e) => [e.id, e])), [bootstrap?.elements]);
   const shortName = (id: number) => {
     const t = teamById.get(id);
     return t?.short_name ?? t?.name.slice(0, 3).toUpperCase() ?? `T${id}`;
@@ -341,7 +381,7 @@ export default function FixturesPage() {
                   </h3>
                   <ul className="divide-y divide-fpl-border/50 border-b border-fpl-border/60 last:border-b-0">
                     {group.items.map((f) => (
-                      <FixtureRow key={f.id} fixture={f} teams={teamById} timezone={timezone} />
+                      <FixtureRow key={f.id} fixture={f} teams={teamById} timezone={timezone} elementsById={elementsById} />
                     ))}
                   </ul>
                 </div>

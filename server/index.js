@@ -7,6 +7,7 @@ import fetch from 'node-fetch';
 import { loadIndex, addToIndex, addStandingsRows, searchIndex, getIndexSize, saveNow as saveSearchIndex } from './search-index.js';
 import { startTeamCrawler } from './team-crawler.js';
 import { renderPage, sitemapXml } from './seo.js';
+import { projectedBonus } from './bonus.js';
 import { loadLeagueIndex, addLeagueToIndex, searchLeaguesByName } from './league-index.js';
 import { startFplNews, getFplNews } from './fpl-news.js';
 import { startSquads, registerSquadRoutes } from './squads.js';
@@ -595,6 +596,11 @@ async function buildLeagueTablePage(id, page, gw) {
     fplGet(`/fixtures/?event=${gw}`).catch(() => null),
   ]);
   const liveByElement = buildLiveByElement(liveJson);
+  // Count bonus projected from live BPS (matches under way / awaiting confirmation), same as the team pitch view.
+  for (const [element, bonus] of projectedBonus(fixturesJson)) {
+    const entry = liveByElement.get(element);
+    if (entry) entry.total_points += bonus;
+  }
   const hasLiveData = liveByElement.size > 0;
   const elementById = new Map();
   for (const el of bootstrap?.elements ?? []) {

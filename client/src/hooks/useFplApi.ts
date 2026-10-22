@@ -18,6 +18,7 @@ import {
   getElementSummary,
 } from '../api/fpl';
 import { anyFixtureLive } from '../utils/fixtureStatus';
+import { projectedBonus } from '../utils/bonus';
 
 const BOOTSTRAP_QUERY_KEY = ['fpl', 'bootstrap-static'] as const;
 const ENTRY_QUERY_KEY = ['fpl', 'entry'] as const;
@@ -135,6 +136,10 @@ export function computeTeamPointsSummary(
     if (elementId != null && el.stats) liveByElement[elementId] = el.stats;
   });
 
+  // Bonus for matches under way (or awaiting FPL's confirmation) is projected from live BPS and counted now;
+  // it can still change, e.g. if another player in that match overtakes on BPS.
+  const bonusProjected = projectedBonus(fixtures?.filter((f) => f.event === gameweek));
+
   const chip = picks.chips?.[0]?.name ?? picks.active_chip ?? null;
   const isBenchBoost = chip != null && /bench\s*boost|bboost/i.test(String(chip));
   const players: PlayerPoints[] = [];
@@ -170,7 +175,9 @@ export function computeTeamPointsSummary(
     const team_name = meta ? teams[meta.team] ?? 'Unknown' : 'Unknown';
     const web_name = meta?.web_name ?? `#${pick.element}`;
     const is_on_bench = pick.position > 11;
-    const total_effective = (Number(stats.total_points) || 0) * (pick.multiplier || 1);
+    const projected_bonus = bonusProjected.get(pick.element) ?? 0;
+    const rawPoints = (Number(stats.total_points) || 0) + projected_bonus;
+    const total_effective = rawPoints * (pick.multiplier || 1);
 
     players.push({
       element_id: pick.element,
@@ -186,9 +193,11 @@ export function computeTeamPointsSummary(
       assists: stats.assists,
       clean_sheets: stats.clean_sheets,
       bonus: stats.bonus,
-      total_points_raw: stats.total_points,
+      total_points_raw: rawPoints,
       multiplier: pick.multiplier ?? 1,
       total_points_effective: total_effective,
+      projected_bonus,
+      defensive_contribution: stats.defensive_contribution ?? 0,
     });
   }
 

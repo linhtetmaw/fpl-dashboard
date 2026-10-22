@@ -3,6 +3,7 @@ import type { PlayerPoints } from '../types/fpl';
 import type { BootstrapStatic, FplElement, FplFixture } from '../types/fpl';
 import { isFixtureLive } from '../utils/fixtureStatus';
 import LiveBadge from './LiveBadge';
+import { DC_THRESHOLD } from '../utils/bonus';
 import PlayerDetailCard from './PlayerDetailCard';
 import { getPlayerImageUrl } from '../utils/playerPhoto';
 import { getAvailability } from '../utils/availability';
@@ -76,6 +77,10 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
     const clubFixtures = fixtures && element ? fixturesByClub.get(element.team) ?? [] : null;
     const inPlay = clubFixtures?.some((f) => f.live) ?? false;
     const opponents = clubFixtures?.map((f) => `${shortById.get(f.opponent) ?? '?'} (${f.home ? 'H' : 'A'})`).join(', ');
+    const bonus = p.projected_bonus ?? 0;
+    const dcThreshold = DC_THRESHOLD[p.element_type];
+    const dc = p.defensive_contribution ?? 0;
+    const showDc = dcThreshold != null && dc > 0 && !isReplaced;
     return (
       <button
         type="button"
@@ -135,6 +140,24 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
         >
           {isReplaced ? 'Did not play' : `${p.total_points_effective} pts`}
         </p>
+        {(bonus > 0 || showDc) && !isReplaced && (
+          <p
+            className="flex w-full items-center justify-center gap-1 bg-fpl-dark/90 px-0.5 py-px text-[9px] font-bold tabular-nums sm:text-[10px]"
+            title={[
+              bonus > 0 ? `${bonus} projected bonus point${bonus === 1 ? '' : 's'} (from live BPS; can still change)` : null,
+              showDc ? `Defensive contribution ${dc}/${dcThreshold}${dc >= dcThreshold ? ' — +2 earned' : ''}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          >
+            {bonus > 0 && <span className="text-amber-300">B+{bonus}</span>}
+            {showDc && (
+              <span className={dc >= dcThreshold ? 'text-emerald-400' : 'text-slate-400'}>
+                {dc >= dcThreshold ? 'DC ✓+2' : `DC ${dc}/${dcThreshold}`}
+              </span>
+            )}
+          </p>
+        )}
         {clubFixtures && (
           <p
             className="w-full truncate rounded-b-md bg-fpl-dark/80 px-1 py-px text-center text-[9px] sm:text-[10px] font-medium text-slate-300"

@@ -120,6 +120,8 @@ export interface FplFixture {
   started?: boolean;
   /** Minutes played so far (live) or 90 when finished. */
   minutes?: number;
+  /** Per-player match stats: goals, assists, bps, bonus (filled in once awarded), defensive_contribution… */
+  stats?: FixtureStat[];
   team_h_difficulty?: number;
   team_a_difficulty?: number;
 }
@@ -165,7 +167,7 @@ export interface Pick {
 
 export interface EventLiveResponse {
   /** API may use "id" or "element" for player element id */
-  elements: { id?: number; element?: number; stats: LiveStats }[];
+  elements: { id?: number; element?: number; stats: LiveStats; explain?: LiveExplain[] }[];
 }
 
 export interface LiveStats {
@@ -175,6 +177,22 @@ export interface LiveStats {
   clean_sheets: number;
   bonus: number;
   total_points: number;
+  bps?: number;
+  /** Defensive contribution count (tackles + clearances/blocks/interceptions, + recoveries for MID/FWD). */
+  defensive_contribution?: number;
+}
+
+/** Points breakdown for one fixture (a player has two in a double gameweek). */
+export interface LiveExplain {
+  fixture: number;
+  stats: { identifier: string; points: number; value: number }[];
+}
+
+/** One per-fixture stat list, e.g. identifier "bps" with each player's value for the home (h) and away (a) side. */
+export interface FixtureStat {
+  identifier: string;
+  h: { element: number; value: number }[];
+  a: { element: number; value: number }[];
 }
 
 export interface EntryHistoryResponse {
@@ -242,6 +260,10 @@ export interface PlayerPoints {
   total_points_effective: number;
   /** True when this player was on the bench and auto-substituted into the starting XI. */
   is_substitute?: boolean;
+  /** Bonus not yet awarded but projected from live BPS (already included in total_points_raw). */
+  projected_bonus?: number;
+  /** Defensive contribution count so far this gameweek. */
+  defensive_contribution?: number;
 }
 
 export interface TeamPointsSummary {

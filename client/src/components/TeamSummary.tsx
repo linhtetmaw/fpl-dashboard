@@ -53,6 +53,14 @@ export default function TeamSummary({
   showShLeagueBadge = false,
 }: TeamSummaryProps) {
   const isShHost = SH_HOST_TEAM_IDS.has(teamId);
+  /** Projected bonus counted in the GW total (players who score for the team, with captain multiplier). */
+  const isBenchBoost = /bboost|bench/i.test(String(summary?.chip ?? ''));
+  const projectedBonusPts = summary
+    ? [...summary.effectivePitchPlayers, ...(isBenchBoost ? summary.effectiveBench : [])].reduce(
+        (n, p) => n + (p.projected_bonus ?? 0) * (p.multiplier || 1),
+        0
+      )
+    : 0;
   const queryClient = useQueryClient();
   const [isRefreshing, setIsRefreshing] = useState(false);
   /** Re-fetch all FPL data (live points, picks, league tables); the server cache keeps this cheap. */
@@ -149,6 +157,15 @@ export default function TeamSummary({
             <p className="font-display text-xl sm:text-4xl font-bold text-white mt-0.5 sm:mt-1 tabular-nums leading-tight">
               {gwNetTotal ?? summary.starting_points}
             </p>
+            {projectedBonusPts > 0 && (
+              <p
+                className="mt-0.5 truncate text-[9px] font-semibold text-amber-300 sm:text-[11px]"
+                title="Bonus projected from live BPS. It can still change until FPL confirms it after the match."
+              >
+                <span className="sm:hidden">+{projectedBonusPts} bonus</span>
+                <span className="hidden sm:inline">incl. +{projectedBonusPts} projected bonus</span>
+              </p>
+            )}
           </div>
           <StatTile label="Transfer hits" shortLabel="Hits">
             <span className={transfersCost != null && transfersCost > 0 ? 'text-rose-400' : ''}>
