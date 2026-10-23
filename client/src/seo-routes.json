@@ -1,7 +1,7 @@
 {
   "/": {
     "title": "FPL House · Live FPL points, mini-leagues & stats",
-    "description": "Live Fantasy Premier League points with auto-subs, live mini-league tables with chips and captains, player stats, fixtures and a squad planner. No login needed."
+    "description": "Live Fantasy Premier League (ဖန်တာစီ ပရီးမီးယားလိဂ်) points with auto-subs, live mini-league tables with chips and captains, player stats, fixtures in Myanmar time and a squad planner. No login needed."
   },
   "/player-stats": {
     "title": "FPL Player Stats – xG, xA, Transfers & Prices | FPL House",
@@ -9,11 +9,15 @@
   },
   "/player-news": {
     "title": "FPL Injury & Suspension News | FPL House",
-    "description": "Latest Fantasy Premier League player news: injuries, suspensions, doubtful players and chance of playing, from the official FPL game."
+    "description": "Latest Fantasy Premier League injury and suspension news (ကစားသမား ဒဏ်ရာ သတင်း): doubtful players and chance of playing, from the official FPL game."
   },
   "/fixtures": {
-    "title": "FPL Fixtures & Difficulty (FDR) | FPL House",
-    "description": "Premier League fixtures and results by gameweek, with a fixture difficulty (FDR) table for every club to plan your FPL transfers."
+    "title": "Premier League Fixtures & Results (Myanmar Time) | FPL House",
+    "description": "Premier League fixtures, live scores and results in Myanmar time (ပရီးမီးယားလိဂ် ပွဲစဉ်များ မြန်မာစံတော်ချိန်), with a fixture difficulty (FDR) table for every club to plan your FPL transfers."
+  },
+  "/clubs": {
+    "title": "Premier League Clubs – FPL Fixtures, Injuries & Players | FPL House",
+    "description": "All 20 Premier League clubs: fixtures in Myanmar time, injury news, and FPL player prices, form and ownership for each club. ပရီးမီးယားလိဂ် အသင်းများ။"
   },
   "/squad-planner": {
     "title": "FPL Squad Planner – Build & Track a £100m Team | FPL House",

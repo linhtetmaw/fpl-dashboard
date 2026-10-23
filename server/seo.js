@@ -10,6 +10,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { fplGet } from './fpl-api.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 /**
@@ -41,6 +42,48 @@ function loadRoutes() {
   };
 }
 const ROUTES = loadRoutes();
+
+/** Club names/slugs/Burmese names (client/src/clubs.json, copied into dist like seo-routes.json). */
+function loadClubs() {
+  for (const file of [
+    path.join(__dirname, '..', 'client', 'dist', 'clubs.json'),
+    path.join(__dirname, '..', 'client', 'src', 'clubs.json'),
+  ]) {
+    try {
+      const { _note, ...clubs } = JSON.parse(fs.readFileSync(file, 'utf8'));
+      return clubs;
+    } catch {
+      // Try the next location.
+    }
+  }
+  console.warn('clubs.json not found: club pages use generic titles.');
+  return {};
+}
+const CLUBS = loadClubs();
+const CLUB_BY_SLUG = new Map(Object.values(CLUBS).map((c) => [c.slug, c]));
+/** Slugs of the clubs in the Premier League this season (from FPL); null until first loaded. */
+let currentClubSlugs = null;
+
+async function refreshCurrentClubs() {
+  try {
+    const bootstrap = await fplGet('/bootstrap-static/');
+    currentClubSlugs = new Set((bootstrap.teams ?? []).map((t) => CLUBS[t.short_name]?.slug).filter(Boolean));
+  } catch {
+    // Keep the previous list (or none): pages still render.
+  }
+}
+refreshCurrentClubs();
+setInterval(refreshCurrentClubs, 60 * 60 * 1000).unref();
+
+function clubMeta(slug) {
+  const club = CLUB_BY_SLUG.get(slug);
+  // Unknown slug, or a club not in the league this season (once we know the season's clubs): not a page.
+  if (!club || (currentClubSlugs && !currentClubSlugs.has(slug))) return null;
+  return {
+    title: `${club.name} FPL: Fixtures, Injuries & Player Prices | FPL House`,
+    description: `${club.name} (${club.my}) fixtures and results in Myanmar time, injury news, and Fantasy Premier League player prices, points, form and ownership.`,
+  };
+}
 const NOT_FOUND = { title: 'Page not found | FPL House', description: 'This page does not exist on FPL House.' };
 
 const escapeHtml = (s) =>
@@ -60,7 +103,8 @@ function cleanPath(p) {
 export function renderPage(templateHtml, req) {
   const p = cleanPath(req.path);
   // Without the routes file we can't tell real pages from unknown ones, so serve every path with the default title.
-  const route = ROUTES[p] ?? (routesLoaded ? undefined : ROUTES['/']);
+  const clubSlug = p.startsWith('/clubs/') ? p.slice('/clubs/'.length) : null;
+  const route = clubSlug ? clubMeta(clubSlug) : ROUTES[p] ?? (routesLoaded ? undefined : ROUTES['/']);
   const meta = route ?? NOT_FOUND;
   const title = escapeHtml(meta.title);
   const description = escapeHtml(meta.description);
@@ -83,7 +127,8 @@ export function renderPage(templateHtml, req) {
 /** sitemap.xml listing every public page. */
 export function sitemapXml(req) {
   const base = origin(req);
-  const urls = Object.keys(ROUTES)
+  const clubPaths = [...(currentClubSlugs ?? [])].sort().map((slug) => `/clubs/${slug}`);
+  const urls = [...Object.keys(ROUTES), ...clubPaths]
     .map((p) => `  <url><loc>${escapeHtml(base + p)}</loc><changefreq>${p === '/' || p === '/player-news' ? 'daily' : 'weekly'}</changefreq></url>`)
     .join('\n');
   return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${urls}\n</urlset>\n`;

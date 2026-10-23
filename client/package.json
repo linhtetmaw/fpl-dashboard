@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build && cp src/seo-routes.json dist/seo-routes.json",
+    "build": "tsc -b && vite build && cp src/seo-routes.json src/clubs.json dist/",
     "preview": "vite preview"
   },
   "dependencies": {

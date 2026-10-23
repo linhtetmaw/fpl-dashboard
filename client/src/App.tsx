@@ -8,6 +8,8 @@ import PlayerNewsPage from './pages/PlayerNewsPage';
 import FixturesPage from './pages/FixturesPage';
 import SquadPlannerPage from './pages/SquadPlannerPage';
 import NotFoundPage from './pages/NotFoundPage';
+import ClubsPage from './pages/ClubsPage';
+import ClubPage from './pages/ClubPage';
 import OpinionsPage from './pages/OpinionsPage';
 
 function App() {
@@ -29,6 +31,8 @@ function App() {
         <Route path="player-stats" element={<PlayerStatsPage />} />
         <Route path="player-news" element={<PlayerNewsPage />} />
         <Route path="fixtures" element={<FixturesPage />} />
+        <Route path="clubs" element={<ClubsPage />} />
+        <Route path="clubs/:slug" element={<ClubPage />} />
         <Route path="squad-planner" element={<SquadPlannerPage />} />
         <Route path="opinions" element={<OpinionsPage />} />
         <Route path="*" element={<NotFoundPage />} />

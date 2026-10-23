@@ -15,6 +15,7 @@ const NAV_ITEMS = [
   { to: '/player-stats', label: 'Player Stats' },
   { to: '/player-news', label: 'Player News' },
   { to: '/fixtures', label: 'Fixtures' },
+  { to: '/clubs', label: 'Clubs' },
   { to: '/squad-planner', label: 'Squad Planner' },
   { to: '/opinions', label: 'Opinions' },
 ];
@@ -104,6 +105,8 @@ export default function AppLayout() {
   // Browser tab (and Google Analytics page) title per section; the server sets the same on first load (server/seo.js).
   useEffect(() => {
     const p = location.pathname.length > 1 ? location.pathname.replace(/\/+$/, '') : location.pathname;
+    // Club pages set their own title (one per club).
+    if (p.startsWith('/clubs/')) return;
     document.title = PAGE_TITLES[p]?.title ?? 'Page not found | FPL House';
   }, [location.pathname]);
   const [, setSearchParams] = useSearchParams();
