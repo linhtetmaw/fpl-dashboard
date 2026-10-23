@@ -92,13 +92,14 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
   );
   const userLoaded = results.some((r) => r.entry === teamId);
 
-  /** Set of entry ids that have the highest event_total (current GW) in this league. */
+  /** Entry ids with the highest event_total in this league, once every match of the gameweek has been played. */
+  const gwFinished = bootstrap?.events?.find((e) => e.id === gameweek)?.finished ?? false;
   const gwWinnerEntries = useMemo(() => {
-    if (results.length === 0) return new Set<number>();
+    if (!gwFinished || results.length === 0) return new Set<number>();
     const maxPoints = Math.max(...results.map((r) => r.event_total ?? 0));
     const winners = new Set(results.filter((r) => (r.event_total ?? 0) === maxPoints).map((r) => r.entry));
     return winners;
-  }, [results]);
+  }, [gwFinished, results]);
 
   // Captain, team value and per-GW points come with each row from the server (standings-with-chips), so the
   // table needs no extra request per team.
