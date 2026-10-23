@@ -1,12 +1,10 @@
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { getEventLive } from '../api/fpl';
 import type { FplElement, FplFixture, FplTeam } from '../types/fpl';
-import { DC_THRESHOLD, bonusAwarded, bonusFromBps, fixtureStat } from '../utils/bonus';
+import { bonusAwarded, bonusFromBps, fixtureStat } from '../utils/bonus';
 import { isFixtureLive } from '../utils/fixtureStatus';
-
-const POS: Record<number, string> = { 1: 'GKP', 2: 'DEF', 3: 'MID', 4: 'FWD' };
-/** Show defensive contribution for players within this many of the threshold. */
-const DC_NEAR = 4;
+import LineupPitch, { buildLineup, getConfirmedLineups } from './LineupPitch';
 
 interface MatchDetailsProps {
   fixture: FplFixture;
@@ -15,16 +13,36 @@ interface MatchDetailsProps {
 }
 
 /**
- * Bonus (projected from live BPS until FPL awards it), defensive contribution progress and each listed player's
- * points for this match. Points come from FPL's per-fixture breakdown, plus projected bonus.
+ * Each team's line-up on a pitch: predicted, then confirmed (about an hour before kick-off), then live. Once the match
+ * starts every player shows their points from FPL's per-fixture breakdown, BPS, defensive contribution, and the bonus
+ * and DC points earned (bonus projected from live BPS until FPL awards it).
  */
 export default function MatchDetails({ fixture: f, elementsById, teams }: MatchDetailsProps) {
   const live = isFixtureLive(f);
   const { data: liveData, isLoading } = useQuery({
     queryKey: ['fpl', 'live', f.event],
     queryFn: () => getEventLive(f.event),
+    enabled: Boolean(f.started),
     refetchInterval: live ? 60 * 1000 : false,
   });
+  // Before kick-off the predicted XI leans on who started last gameweek.
+  const { data: prevLive } = useQuery({
+    queryKey: ['fpl', 'live', f.event - 1],
+    queryFn: () => getEventLive(f.event - 1),
+    enabled: !f.started && f.event > 1,
+    staleTime: 60 * 60 * 1000,
+  });
+  // Announced line-ups (about an hour before kick-off); the server only looks from 90 minutes before.
+  const kickoff = f.kickoff_time ? new Date(f.kickoff_time).getTime() : 0;
+  const nearKickoff = !f.finished && !f.finished_provisional && kickoff > 0 && Date.now() > kickoff - 90 * 60 * 1000;
+  const { data: confirmed } = useQuery({
+    queryKey: ['lineups', f.id],
+    queryFn: () => getConfirmedLineups(f.id),
+    enabled: nearKickoff,
+    staleTime: 60 * 1000,
+    refetchInterval: (q) => (q.state.data?.status === 'confirmed' ? false : 2 * 60 * 1000),
+  });
+  const [side, setSide] = useState<'h' | 'a'>('h');
 
   const awarded = bonusAwarded(f);
   const bps = fixtureStat(f, 'bps');
@@ -32,6 +50,7 @@ export default function MatchDetails({ fixture: f, elementsById, teams }: MatchD
     ? new Map(fixtureStat(f, 'bonus').map((r) => [r.element, r.value]))
     : bonusFromBps(bps);
   const bpsByElement = new Map(bps.map((r) => [r.element, r.value]));
+  const dcByElement = new Map(fixtureStat(f, 'defensive_contribution').map((r) => [r.element, r.value]));
 
   /** Points this player scored in this match (FPL breakdown), plus bonus if it's only projected so far. */
   const matchPoints = (element: number) => {
@@ -42,107 +61,41 @@ export default function MatchDetails({ fixture: f, elementsById, teams }: MatchD
     return pts + (awarded ? 0 : bonus.get(element) ?? 0);
   };
 
-  const who = (element: number) => {
-    const e = elementsById.get(element);
-    return {
-      name: e?.web_name ?? `#${element}`,
-      team: e ? teams.get(e.team)?.short_name ?? '' : '',
-      type: e?.element_type ?? 0,
-    };
-  };
+  const stats = { bps: bpsByElement, dc: dcByElement, bonus, points: matchPoints };
+  const elements = useMemo(() => [...elementsById.values()], [elementsById]);
+  const lineupTeam = side === 'h' ? f.team_h : f.team_a;
+  const confirmedSide = confirmed?.status === 'confirmed' ? confirmed[side === 'h' ? 'home' : 'away'] : null;
+  const lineup = buildLineup(f, lineupTeam, elements, liveData, prevLive, f.event - 1, stats, confirmedSide);
 
-  // Top BPS: everyone in a bonus place, then the next few chasing.
-  const bpsRows = [...bps].sort((a, b) => b.value - a.value).slice(0, Math.max(5, bonus.size));
-
-  const dcRows = fixtureStat(f, 'defensive_contribution')
-    .map((r) => ({ ...r, ...who(r.element) }))
-    .filter((r) => {
-      const t = DC_THRESHOLD[r.type];
-      return t != null && r.value >= t - DC_NEAR;
-    })
-    .sort((a, b) => b.value / DC_THRESHOLD[b.type]! - a.value / DC_THRESHOLD[a.type]!)
-    .slice(0, 8);
-
-  const pts = (element: number) => {
-    const v = matchPoints(element);
-    return v == null ? (isLoading ? '…' : '—') : `${v} pt${Math.abs(v) === 1 ? '' : 's'}`;
-  };
+  const tab = (active: boolean) =>
+    `rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${active ? 'bg-fpl-brand/15 text-fpl-brand' : 'text-slate-400 hover:text-white'}`;
 
   return (
-    <div className="grid gap-3 border-t border-fpl-border/60 bg-fpl-dark/40 px-3 py-3 sm:grid-cols-2 sm:gap-5 sm:px-5">
-      <section>
-        <h4 className="eyebrow mb-1.5">
-          {awarded ? 'Bonus' : 'Bonus (projected)'}
-          <span className="ml-1 normal-case tracking-normal text-slate-600">· BPS</span>
-        </h4>
-        {bpsRows.length === 0 ? (
-          <p className="text-xs text-slate-500">No BPS yet.</p>
-        ) : (
-          <ul className="space-y-1">
-            {bpsRows.map((r) => {
-              const p = who(r.element);
-              const b = bonus.get(r.element) ?? 0;
-              return (
-                <li key={r.element} className="flex items-center gap-2 text-xs">
-                  <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded font-display text-[11px] font-bold ${
-                      b > 0 ? 'bg-amber-400 text-fpl-ink' : 'bg-fpl-raised text-slate-600'
-                    }`}
-                    title={b > 0 ? `${b} bonus point${b === 1 ? '' : 's'}${awarded ? '' : ' (projected)'}` : 'No bonus'}
-                  >
-                    {b > 0 ? b : '–'}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-slate-200">
-                    {p.name} <span className="text-slate-500">{p.team}</span>
-                  </span>
-                  <span className="w-8 shrink-0 text-right tabular-nums text-slate-500">{bpsByElement.get(r.element)}</span>
-                  <span className="w-12 shrink-0 text-right font-semibold tabular-nums text-white">{pts(r.element)}</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-
-      <section>
-        <h4 className="eyebrow mb-1.5">
-          Defensive contribution
-          <span className="ml-1 normal-case tracking-normal text-slate-600">· DEF 10 · MID/FWD 12 = +2</span>
-        </h4>
-        {dcRows.length === 0 ? (
-          <p className="text-xs text-slate-500">Nobody close to the threshold yet.</p>
-        ) : (
-          <ul className="space-y-1">
-            {dcRows.map((r) => {
-              const t = DC_THRESHOLD[r.type]!;
-              const done = r.value >= t;
-              return (
-                <li key={r.element} className="flex items-center gap-2 text-xs">
-                  <span
-                    className={`flex h-5 w-5 shrink-0 items-center justify-center rounded text-[11px] font-bold ${
-                      done ? 'bg-emerald-500 text-fpl-ink' : 'bg-fpl-raised text-slate-500'
-                    }`}
-                  >
-                    {done ? '✓' : '…'}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-slate-200">
-                    {r.name} <span className="text-slate-500">{r.team} · {POS[r.type]}</span>
-                  </span>
-                  <span className={`w-12 shrink-0 text-right tabular-nums ${done ? 'font-semibold text-emerald-400' : 'text-slate-400'}`}>
-                    {r.value}/{t}
-                  </span>
-                  <span className="w-12 shrink-0 text-right font-semibold tabular-nums text-white">{pts(r.element)}</span>
-                </li>
-              );
-            })}
-          </ul>
-        )}
-      </section>
-      {!awarded && (
-        <p className="text-[11px] text-slate-500 sm:col-span-2">
-          Bonus is projected from live BPS (top 3 get 3/2/1) and can change until FPL confirms it after the match. Points include it.
-        </p>
+    <div className="border-t border-fpl-border/60 bg-fpl-dark/40 px-2 py-3 sm:px-5">
+      <div className="mb-3 flex gap-1" role="tablist" aria-label="Team">
+        {(['h', 'a'] as const).map((s) => {
+          const t = teams.get(s === 'h' ? f.team_h : f.team_a);
+          return (
+            <button key={s} type="button" role="tab" aria-selected={side === s} className={tab(side === s)} onClick={() => setSide(s)}>
+              {t?.name ?? (s === 'h' ? 'Home' : 'Away')}
+            </button>
+          );
+        })}
+      </div>
+      {isLoading && f.started ? (
+        <div className="h-80 animate-pulse rounded-xl bg-fpl-raised/60" />
+      ) : (
+        <LineupPitch lineup={lineup} team={teams.get(lineupTeam)} bonusProjected={!awarded} />
       )}
+      <p className="mt-2 text-[11px] text-slate-500">
+        {lineup.kind === 'predicted'
+          ? 'Predicted from last gameweek’s line-up, starts this season and injury news. The confirmed XI replaces it when the teams are announced, about an hour before kick-off.'
+          : lineup.kind === 'confirmed'
+          ? 'Confirmed line-up, announced before kick-off. Points, BPS and defensive contribution appear once the match starts.'
+          : `Points include bonus (BON) and defensive contribution (DC: +2 at 10 for defenders, 12 for midfielders and forwards)${
+              live ? ', updated every minute while the match is on' : ''
+            }.${awarded ? '' : ' Bonus marked * is projected from live BPS (top 3 get 3/2/1) and can change until FPL confirms it.'}`}
+      </p>
     </div>
   );
 }

@@ -117,7 +117,7 @@ function FixtureRow({
   const live = isFixtureLive(f);
   const hasScore = done || (live && f.team_h_score != null && f.team_a_score != null);
   /** Started matches open to show bonus, defensive contribution and player points. */
-  const expandable = Boolean(f.started || done);
+  const expandable = true;
   const [open, setOpen] = useState(false);
 
   return (
@@ -128,7 +128,7 @@ function FixtureRow({
         aria-expanded={expandable ? open : undefined}
         onClick={expandable ? () => setOpen((o) => !o) : undefined}
         onKeyDown={expandable ? (e) => (e.key === 'Enter' || e.key === ' ') && (e.preventDefault(), setOpen((o) => !o)) : undefined}
-        title={expandable ? (open ? 'Hide match details' : 'Show bonus, defensive contribution and points') : undefined}
+        title={expandable ? (open ? 'Hide match details' : 'Show line-ups, points, bonus and defensive contribution') : undefined}
         className={`relative grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-4 px-3 sm:px-4 py-3 transition-colors hover:bg-fpl-raised/40 ${
           expandable ? 'cursor-pointer' : ''
         } ${open ? 'bg-fpl-raised/40' : ''}`}

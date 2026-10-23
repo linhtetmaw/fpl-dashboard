@@ -13,6 +13,7 @@ import { loadLeagueIndex, addLeagueToIndex, searchLeaguesByName } from './league
 import { startFplNews, getFplNews } from './fpl-news.js';
 import { startSquads, registerSquadRoutes } from './squads.js';
 import { registerAuthRoutes } from './auth.js';
+import { registerLineupRoutes } from './lineups.js';
 import { fplGet, memo, cacheKey, cacheStats, FplError } from './fpl-api.js';
 import { redirects, securityHeaders, rateLimit, clientIp } from './security.js';
 
@@ -791,6 +792,8 @@ app.get('/api/youtube-playlist', async (req, res) => {
 /** Telegram login + Squad Planner (up to 3 squads per Telegram account; see auth.js and squads.js). */
 registerAuthRoutes(app);
 registerSquadRoutes(app);
+/** Confirmed line-ups from ESPN, about an hour before kick-off (see lineups.js). */
+registerLineupRoutes(app);
 
 /** FPL news: player injuries/suspensions/doubts. Refreshed every 20 min by fpl-news.js. */
 app.get('/api/fpl-news', (req, res) => {
