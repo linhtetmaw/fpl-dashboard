@@ -113,6 +113,7 @@ All FPL API calls go through an in-memory cache (`server/fpl-api.js`), so traffi
 2. Still in @BotFather: `/setdomain` → choose the bot → send your site's domain (e.g. `fplhouse.com`, no `https://`). The login button only works on this domain, so it won't appear on `localhost`.
 3. In Railway, set `TELEGRAM_BOT_TOKEN` (the token), `TELEGRAM_BOT_USERNAME` (the username without `@`) and `SESSION_SECRET`, then redeploy.
 4. Open Squad Planner: the "Log in with Telegram" button appears in the account bar. Users can still build a squad without logging in; logging in is only needed to save.
+5. Channel invite: the login asks users to allow messages from the bot; if they do, the bot sends them one message with a "Join channel" button for **@fplhouseapp** (`server/telegram-welcome.js`). Set `TELEGRAM_CHANNEL` (without `@`) to use a different channel. Telegram doesn't let bots add people to channels, so users still tap Join themselves.
 
 You can add env vars in Railway: **Project → Variables** or **Service → Variables**.
 

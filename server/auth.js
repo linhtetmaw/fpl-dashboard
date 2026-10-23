@@ -12,6 +12,7 @@
  *                            startup, so everyone is logged out whenever the server restarts.
  */
 import crypto from 'crypto';
+import { sendChannelInvite } from './telegram-welcome.js';
 
 const COOKIE = 'fplh_session';
 const SESSION_DAYS = 30;
@@ -111,6 +112,8 @@ export function registerAuthRoutes(app) {
     if (!user) return res.status(401).json({ error: 'Telegram login could not be verified. Please try again.' });
     setSession(req, res, user);
     res.json({ user });
+    // Invite them to the Telegram channel (once per user, in the background).
+    sendChannelInvite(user);
   });
 
   app.post('/api/auth/logout', (req, res) => {

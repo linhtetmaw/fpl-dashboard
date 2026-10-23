@@ -29,6 +29,8 @@ export default function TelegramLogin({ bot, onAuth }: TelegramLoginProps) {
     script.setAttribute('data-size', 'large');
     script.setAttribute('data-radius', '10');
     script.setAttribute('data-onauth', 'onTelegramAuth(user)');
+    // Ask to let the bot message them, so it can send the channel invite (server/telegram-welcome.js).
+    script.setAttribute('data-request-access', 'write');
     host.appendChild(script);
     return () => {
       host.innerHTML = '';
