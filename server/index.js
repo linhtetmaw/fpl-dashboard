@@ -30,6 +30,14 @@ const clientDist = path.join(__dirname, '..', 'client', 'dist');
 const clientPublic = path.join(__dirname, '..', 'client', 'public');
 // 2025-26: PL CDN serves current-season player photos at this path (no season folder; they update in place)
 const PL_PHOTO_BASE = 'https://resources.premierleague.com/premierleague/photos/players/250x250';
+/**
+ * Current-season photos (current kits), the folder the official FPL site uses: {code}.png, no "p" prefix. The old
+ * folder above stopped updating, so transferred players appear there in their previous club's shirt. Brand-new
+ * signings can be missing here for a while; remember those for a few hours instead of asking again every time.
+ */
+const PL_PHOTO_CURRENT = 'https://resources.premierleague.com/premierleague25/photos/players/110x140';
+const MISSING_CURRENT_TTL = 6 * 60 * 60 * 1000;
+const missingCurrentPhoto = new Map();
 // TheSportsDB for badges (PL CDN badge IDs do not match FPL team IDs – causes wrong logos)
 const THESPORTSDB_API = 'https://www.thesportsdb.com/api/v1/json/123';
 
@@ -281,6 +289,27 @@ app.get('/api/player-photo', async (req, res) => {
   if (!name && !code) {
     return res.status(400).send('Missing name or code');
   }
+  // 1. This season's official photo, in the current club's kit.
+  if (code && !(missingCurrentPhoto.get(code) > Date.now())) {
+    try {
+      const plRes = await fetch(`${PL_PHOTO_CURRENT}/${code}.png`, {
+        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
+      });
+      if (plRes.ok) {
+        res.set('Cache-Control', 'public, max-age=86400, must-revalidate');
+        res.set('Content-Type', 'image/png');
+        res.send(Buffer.from(await plRes.arrayBuffer()));
+        return;
+      }
+      if (plRes.status === 403 || plRes.status === 404) {
+        if (missingCurrentPhoto.size >= 5000) missingCurrentPhoto.delete(missingCurrentPhoto.keys().next().value);
+        missingCurrentPhoto.set(code, Date.now() + MISSING_CURRENT_TTL);
+      }
+    } catch (err) {
+      console.error('Current player photo error:', err.message);
+    }
+  }
+
   const nameLower = name.toLowerCase();
   const teamLower = team.toLowerCase();
   const nameNorm = nameLower.normalize('NFD').replace(/\p{Diacritic}/gu, '');
@@ -363,11 +392,13 @@ app.get('/api/player-photo', async (req, res) => {
           const list = data.players ?? data.player ?? [];
           const arr = Array.isArray(list) ? list : [list];
           const teamNorm = normalizeTeamForMatch(team);
+          // Only trust a result at the player's current club: anything else is usually an old photo (or a
+          // different player with the same name).
           const player = teamNorm
             ? arr.find((p) => {
                 const t = normalizeTeamForMatch(p?.strTeam ?? '');
                 return t && (t.includes(teamNorm) || teamNorm.includes(t));
-              }) ?? arr[0]
+              })
             : arr[0];
           imageUrl = player?.strCutout || player?.strThumb || null;
           if (imageUrl) {
