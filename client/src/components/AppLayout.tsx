@@ -5,6 +5,7 @@ import { ClockIcon, LogoMark, MoonIcon, SunIcon, SwapIcon } from './icons';
 import { getTheme, setTheme, type Theme } from '../theme';
 import SEO_ROUTES from '../seo-routes.json';
 import PlayerCardProvider from './PlayerCardProvider';
+import InstallButton from './InstallButton';
 
 const TEAM_ID_KEY = 'fpl_team_id';
 
@@ -144,6 +145,7 @@ export default function AppLayout() {
             </div>
             <div className="flex items-center gap-2">
               <DeadlineChip className="hidden lg:inline-flex" />
+              <InstallButton />
               <button
                 type="button"
                 onClick={toggleTheme}

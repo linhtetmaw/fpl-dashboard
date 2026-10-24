@@ -14,6 +14,7 @@ import { startFplNews, getFplNews } from './fpl-news.js';
 import { startSquads, registerSquadRoutes } from './squads.js';
 import { registerAuthRoutes } from './auth.js';
 import { registerLineupRoutes } from './lineups.js';
+import { registerTransferSuggestionRoutes } from './transfer-suggestions.js';
 import { fplGet, memo, cacheKey, cacheStats, FplError } from './fpl-api.js';
 import { redirects, securityHeaders, rateLimit, clientIp } from './security.js';
 
@@ -836,6 +837,7 @@ registerAuthRoutes(app);
 registerSquadRoutes(app);
 /** Confirmed line-ups from ESPN, about an hour before kick-off (see lineups.js). */
 registerLineupRoutes(app);
+registerTransferSuggestionRoutes(app);
 
 /** FPL news: player injuries/suspensions/doubts. Refreshed every 20 min by fpl-news.js. */
 app.get('/api/fpl-news', (req, res) => {

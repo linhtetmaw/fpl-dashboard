@@ -346,3 +346,46 @@ export interface PlayerTrackerResponse {
   /** element id → [transfers in, transfers out] over that window. */
   transfers_recent: Record<string, [number, number]>;
 }
+
+/** One player as scored by the transfer-suggestions algorithm (server/transfer-suggestions.js). */
+export interface SuggestionPlayer {
+  id: number;
+  name: string;
+  teamId: number;
+  team: string;
+  position: 'GKP' | 'DEF' | 'MID' | 'FWD';
+  price: number;
+  status: string;
+  /** Chance of playing (0–100) when below 100, else null. */
+  chance: number | null;
+  news: string | null;
+  last5: { gw: number; points: number }[];
+  minutes5: number;
+  formPpm: number;
+  avgFdr: number | null;
+  fixtures: { gw: number; opponent: string; home: boolean; fdr: number }[];
+  /** Expected points over the planning horizon. */
+  projected: number;
+}
+
+export interface TransferSuggestion {
+  out: SuggestionPlayer & { reasons: string[] };
+  in: SuggestionPlayer | null;
+  gain: number;
+  label: 'free' | 'hit' | 'keep';
+  worthHit?: boolean;
+}
+
+export interface TransferSuggestionsResponse {
+  teamId: number;
+  gameweek: number;
+  horizon: number[];
+  formGws: number[];
+  freeTransfers: number;
+  maxFreeTransfers: number;
+  pendingTransfers: number;
+  bank: number;
+  squad: { id: number; name: string; team: string; position: string; projected: number }[];
+  suggestions: TransferSuggestion[];
+  generatedAt: string;
+}

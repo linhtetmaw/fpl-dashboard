@@ -37,6 +37,10 @@ export async function getFixtures(gameweek?: number) {
   return fetchApi<import('../types/fpl').FplFixture[]>(`${API_BASE}/fixtures/`, params);
 }
 
+export async function getTransferSuggestions(teamId: number) {
+  return fetchApi<import('../types/fpl').TransferSuggestionsResponse>(`${API_BASE}/transfer-suggestions/${teamId}`);
+}
+
 export async function getEntryHistory(teamId: number) {
   return fetchApi<import('../types/fpl').EntryHistoryResponse>(
     `${API_BASE}/entry/${teamId}/history/`

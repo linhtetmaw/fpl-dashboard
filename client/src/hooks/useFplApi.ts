@@ -16,6 +16,7 @@ import {
   getLeagueStandings,
   getFixtures,
   getElementSummary,
+  getTransferSuggestions,
 } from '../api/fpl';
 import { anyFixtureLive } from '../utils/fixtureStatus';
 import { projectedBonus } from '../utils/bonus';
@@ -59,6 +60,18 @@ export function useEventLive(gameweek: number | null, matchesInPlay = false) {
     queryFn: () => getEventLive(gameweek!),
     enabled: gameweek != null && gameweek > 0,
     refetchInterval: matchesInPlay ? 60 * 1000 : false,
+  });
+}
+
+/** Algorithmic transfer suggestions for the upcoming gameweek (server caches for 10 minutes). Only fetched once
+ * `requested` is true (the user pressed "Analyse my team"). */
+export function useTransferSuggestions(teamId: number | null, requested = true) {
+  return useQuery({
+    queryKey: ['fpl', 'transfer-suggestions', teamId],
+    queryFn: () => getTransferSuggestions(teamId!),
+    enabled: requested && teamId != null && teamId > 0,
+    staleTime: 5 * 60 * 1000,
+    retry: false,
   });
 }
 

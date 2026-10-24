@@ -3,10 +3,12 @@ import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { BrowserRouter } from 'react-router-dom';
 import { initGA } from './analytics';
+import { initInstall } from './install';
 import App from './App';
 import './index.css';
 
 initGA();
+initInstall();
 
 const queryClient = new QueryClient({
   defaultOptions: {

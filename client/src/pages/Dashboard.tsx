@@ -4,6 +4,7 @@ import { useBootstrapStatic, useEntry, useTeamPicks, useEventLive, useEntryHisto
 import TeamSearchPage from './TeamSearchPage';
 import TeamSummary from '../components/TeamSummary';
 import PitchView from '../components/PitchView';
+import TransferSuggestions from '../components/TransferSuggestions';
 import { anyFixtureLive } from '../utils/fixtureStatus';
 import PlayersTable from '../components/PlayersTable';
 import LeagueSelector from '../components/LeagueSelector';
@@ -208,6 +209,9 @@ export default function Dashboard() {
                     </div>
                   </div>
                 </section>
+                <div className="mt-6">
+                  <TransferSuggestions teamId={entry.id} />
+                </div>
                 <section className="mt-6">
                   <h2 className="section-title mb-3">Player breakdown</h2>
                   <PlayersTable players={teamSummary.players} />
