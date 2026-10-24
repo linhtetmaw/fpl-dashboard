@@ -32,12 +32,25 @@ const clientPublic = path.join(__dirname, '..', 'client', 'public');
 const PL_PHOTO_BASE = 'https://resources.premierleague.com/premierleague/photos/players/250x250';
 /**
  * Current-season photos (current kits), the folder the official FPL site uses: {code}.png, no "p" prefix. The old
- * folder above stopped updating, so transferred players appear there in their previous club's shirt. Brand-new
- * signings can be missing here for a while; remember those for a few hours instead of asking again every time.
+ * folder above stopped updating (transferred players appear in their previous club's shirt), so player photos no
+ * longer fall back to it. Brand-new signings can be missing here for a while; remember those for a few hours
+ * instead of asking again every time, and show the silhouette meanwhile.
  */
 const PL_PHOTO_CURRENT = 'https://resources.premierleague.com/premierleague25/photos/players/110x140';
 const MISSING_CURRENT_TTL = 6 * 60 * 60 * 1000;
 const missingCurrentPhoto = new Map();
+/** FPL's grey player silhouette, fetched once and kept in memory. */
+let silhouettePng = null;
+async function getSilhouette() {
+  if (silhouettePng) return silhouettePng;
+  try {
+    const r = await fetch(`${PL_PHOTO_CURRENT}/placeholder.png`);
+    if (r.ok) silhouettePng = Buffer.from(await r.arrayBuffer());
+  } catch (err) {
+    console.error('Player silhouette error:', err.message);
+  }
+  return silhouettePng;
+}
 // TheSportsDB for badges (PL CDN badge IDs do not match FPL team IDs – causes wrong logos)
 const THESPORTSDB_API = 'https://www.thesportsdb.com/api/v1/json/123';
 
@@ -421,16 +434,14 @@ app.get('/api/player-photo', async (req, res) => {
         }
       }
     }
-    if (code) {
-      const plRes = await fetch(`${PL_PHOTO_BASE}/p${code}.png`, {
-        headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0 Safari/537.36' },
-      });
-      if (plRes.ok) {
-        res.set('Cache-Control', 'public, max-age=3600, must-revalidate');
-        res.set('Content-Type', 'image/png');
-        res.send(Buffer.from(await plRes.arrayBuffer()));
-        return;
-      }
+    // No current photo anywhere: the FPL silhouette (as on the FPL site) rather than an old photo in a previous
+    // club's shirt. Short browser cache, so the real photo shows up soon after the Premier League uploads it.
+    const silhouette = await getSilhouette();
+    if (silhouette) {
+      res.set('Cache-Control', 'public, max-age=3600, must-revalidate');
+      res.set('Content-Type', 'image/png');
+      res.send(silhouette);
+      return;
     }
     res.status(404).send();
   } catch (err) {

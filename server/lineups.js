@@ -1,11 +1,18 @@
 /**
- * Confirmed line-ups, about an hour before kick-off. FPL doesn't publish line-ups, so they come from ESPN's public
- * match data (site.api.espn.com, no key): its roster for a match is empty until the teams are announced, then lists
- * the starting XI, formation and bench. ESPN names are matched to FPL players by club and name.
+ * Line-ups from ESPN's public match data (site.api.espn.com, no key), since FPL doesn't publish them. A match's
+ * roster there is empty until the teams are announced (about an hour before kick-off), then lists the starting XI
+ * with each player's position (LB, CD-L, CM-R, AM-L, CF…), the formation and the bench. ESPN names are matched to
+ * FPL players by club and name.
  *
- * GET /api/lineups/:fixtureId → { status: 'confirmed', home, away } or { status: 'pending' }, where each side is
- * { formation, xi: Player[], bench: Player[] } and Player is { element (FPL id or null), name, type (1–4) }.
- * Only looked up from 90 minutes before kick-off; once confirmed it's kept, before that rechecked every 2 minutes.
+ * GET /api/lineups/:fixtureId → {
+ *   status: 'confirmed' | 'pending' | 'unknown',
+ *   home, away,            // the announced line-ups (confirmed only)
+ *   previous: { home, away } // each team's line-up in its last match, for the predicted XI (pending only), plus
+ *                            // usual: { [element]: position } from its last few matches
+ * }
+ * where each side is { formation, xi: Player[], bench: Player[] } and Player is
+ * { element (FPL id or null), name, type (FPL position 1–4), pos (ESPN position, e.g. "CD-L") }.
+ * A match is only looked up from 90 minutes before kick-off; until it's confirmed it's rechecked every 2 minutes.
  */
 import { fplGet } from './fpl-api.js';
 
@@ -13,6 +20,9 @@ const ESPN = 'https://site.api.espn.com/apis/site/v2/sports/soccer/eng.1';
 const LOOKAHEAD_MS = 90 * 60 * 1000;
 const PENDING_TTL = 2 * 60 * 1000;
 const CONFIRMED_TTL = 6 * 60 * 60 * 1000;
+/** Finished matches don't change. */
+const FINISHED_TTL = 24 * 60 * 60 * 1000;
+const SCOREBOARD_TTL = 10 * 60 * 1000;
 
 /** FPL's short club names → ESPN's names (others match as they are, or one contains the other). */
 const CLUB_ALIASES = {
@@ -24,7 +34,22 @@ const CLUB_ALIASES = {
   'sheffield utd': 'sheffield united',
 };
 
-const cache = new Map();
+/** Small TTL cache of promises, so parallel requests share one ESPN call. */
+function ttlCache(max) {
+  const map = new Map();
+  return async (key, compute, ttlFor) => {
+    const hit = map.get(key);
+    if (hit && hit.expires > Date.now()) return hit.promise;
+    const promise = compute();
+    map.set(key, { promise, expires: Date.now() + PENDING_TTL });
+    const value = await promise;
+    map.set(key, { promise, expires: Date.now() + ttlFor(value) });
+    if (map.size > max) map.delete(map.keys().next().value);
+    return value;
+  };
+}
+const lineupCache = ttlCache(1000);
+const scoreboardCache = ttlCache(100);
 
 /** Letters that don't decompose into a base letter + accent. */
 const SPECIAL = { ß: 'ss', ı: 'i', ø: 'o', æ: 'ae', œ: 'oe', đ: 'd', ł: 'l', þ: 'th' };
@@ -100,6 +125,7 @@ function side(roster, squad) {
       element: match?.id ?? null,
       name: match?.web_name ?? p.athlete?.shortName ?? p.athlete?.displayName ?? '?',
       type: match?.element_type ?? typeFromEspn(p.position?.abbreviation),
+      pos: p.position?.abbreviation ?? null,
     };
   };
   const players = roster?.roster ?? [];
@@ -110,56 +136,104 @@ function side(roster, squad) {
   };
 }
 
-async function lookup(fixtureId) {
-  const [fixtures, bootstrap] = await Promise.all([fplGet('/fixtures/'), fplGet('/bootstrap-static/')]);
-  const f = fixtures.find((x) => x.id === fixtureId);
-  if (!f) return { status: 'unknown' };
-  const kickoff = new Date(f.kickoff_time).getTime();
-  if (!f.kickoff_time || f.finished || Date.now() < kickoff - LOOKAHEAD_MS) return { status: 'pending' };
+function scoreboard(day) {
+  return scoreboardCache(day, () => espnJson(`/scoreboard?dates=${day}`), () => SCOREBOARD_TTL);
+}
 
-  const teams = new Map(bootstrap.teams.map((t) => [t.id, t]));
-  const home = teams.get(f.team_h);
-  const away = teams.get(f.team_a);
-  const day = f.kickoff_time.slice(0, 10).replace(/-/g, '');
-  const board = await espnJson(`/scoreboard?dates=${day}`);
-  const event = (board.events ?? []).find((ev) => {
-    const cs = ev.competitions?.[0]?.competitors ?? [];
-    const h = cs.find((c) => c.homeAway === 'home')?.team;
-    const a = cs.find((c) => c.homeAway === 'away')?.team;
-    return sameClub(home?.name, h) && sameClub(away?.name, a);
-  });
-  if (!event) return { status: 'pending' };
+/** Both teams' line-ups for an FPL fixture from ESPN, or null if they haven't been announced (or can't be found). */
+function espnLineup(f, bootstrap) {
+  return lineupCache(
+    f.id,
+    async () => {
+      try {
+        const teams = new Map(bootstrap.teams.map((t) => [t.id, t]));
+        const home = teams.get(f.team_h);
+        const away = teams.get(f.team_a);
+        const board = await scoreboard(f.kickoff_time.slice(0, 10).replace(/-/g, ''));
+        const event = (board.events ?? []).find((ev) => {
+          const cs = ev.competitions?.[0]?.competitors ?? [];
+          const h = cs.find((c) => c.homeAway === 'home')?.team;
+          const a = cs.find((c) => c.homeAway === 'away')?.team;
+          return sameClub(home?.name, h) && sameClub(away?.name, a);
+        });
+        if (!event) return null;
+        const summary = await espnJson(`/summary?event=${event.id}`);
+        const rosters = summary.rosters ?? [];
+        const rosterFor = (team) => rosters.find((r) => sameClub(team?.name, r.team));
+        const squad = (teamId) => bootstrap.elements.filter((e) => e.team === teamId);
+        const h = side(rosterFor(home), squad(f.team_h));
+        const a = side(rosterFor(away), squad(f.team_a));
+        return h.xi.length === 11 && a.xi.length === 11 ? { home: h, away: a } : null;
+      } catch (err) {
+        console.error('Line-ups lookup failed:', err.message);
+        return null;
+      }
+    },
+    (value) => (f.finished ? (value ? FINISHED_TTL : 60 * 60 * 1000) : value ? CONFIRMED_TTL : PENDING_TTL)
+  );
+}
 
-  const summary = await espnJson(`/summary?event=${event.id}`);
-  const rosters = summary.rosters ?? [];
-  const rosterFor = (team) => rosters.find((r) => sameClub(team?.name, r.team));
-  const squad = (teamId) => bootstrap.elements.filter((e) => e.team === teamId);
-  const h = side(rosterFor(home), squad(f.team_h));
-  const a = side(rosterFor(away), squad(f.team_a));
-  if (h.xi.length !== 11 || a.xi.length !== 11) return { status: 'pending' };
-  return { status: 'confirmed', source: 'ESPN', home: h, away: a };
+/** How many recent matches to learn each player's usual position from. */
+const USUAL_POS_MATCHES = 5;
+
+/**
+ * This team's line-up in its last finished match before the given kick-off, or null. Also returns `usual`: each
+ * player's most common starting position over the team's last few matches, so the predicted XI can put a
+ * replacement in the empty spot that suits them (e.g. a winger into an attacking spot, not a holding one).
+ */
+async function previousLineup(teamId, before, fixtures, bootstrap) {
+  const recent = fixtures
+    .filter((x) => x.finished && x.kickoff_time && x.kickoff_time < before && (x.team_h === teamId || x.team_a === teamId))
+    .sort((a, b) => b.kickoff_time.localeCompare(a.kickoff_time))
+    .slice(0, USUAL_POS_MATCHES);
+  if (!recent.length) return null;
+  const sides = await Promise.all(
+    recent.map(async (x) => {
+      const lineup = await espnLineup(x, bootstrap);
+      return lineup ? lineup[x.team_h === teamId ? 'home' : 'away'] : null;
+    })
+  );
+  const last = sides[0];
+  if (!last) return null;
+  const counts = new Map();
+  for (const sideXi of sides) {
+    for (const p of sideXi?.xi ?? []) {
+      if (p.element == null || !p.pos) continue;
+      const byPos = counts.get(p.element) ?? new Map();
+      byPos.set(p.pos, (byPos.get(p.pos) ?? 0) + 1);
+      counts.set(p.element, byPos);
+    }
+  }
+  const usual = {};
+  for (const [element, byPos] of counts) usual[element] = [...byPos].sort((a, b) => b[1] - a[1])[0][0];
+  return { ...last, usual };
 }
 
 export async function getLineups(fixtureId) {
-  const hit = cache.get(fixtureId);
-  if (hit && hit.expires > Date.now()) return hit.promise;
-  const promise = lookup(fixtureId).catch((err) => {
-    console.error('Line-ups lookup failed:', err.message);
-    return { status: 'pending' };
-  });
-  cache.set(fixtureId, { promise, expires: Date.now() + PENDING_TTL });
-  const value = await promise;
-  cache.set(fixtureId, { promise, expires: Date.now() + (value.status === 'confirmed' ? CONFIRMED_TTL : PENDING_TTL) });
-  if (cache.size > 500) cache.delete(cache.keys().next().value);
-  return value;
+  const [fixtures, bootstrap] = await Promise.all([fplGet('/fixtures/'), fplGet('/bootstrap-static/')]);
+  const f = fixtures.find((x) => x.id === fixtureId);
+  if (!f || !f.kickoff_time) return { status: 'unknown' };
+  const near = Date.now() >= new Date(f.kickoff_time).getTime() - LOOKAHEAD_MS;
+  const announced = near ? await espnLineup(f, bootstrap) : null;
+  if (announced) return { status: 'confirmed', source: 'ESPN', ...announced };
+  const [home, away] = await Promise.all([
+    previousLineup(f.team_h, f.kickoff_time, fixtures, bootstrap),
+    previousLineup(f.team_a, f.kickoff_time, fixtures, bootstrap),
+  ]);
+  return { status: 'pending', previous: { home, away } };
 }
 
 export function registerLineupRoutes(app) {
   app.get('/api/lineups/:fixtureId', async (req, res) => {
     const { fixtureId } = req.params;
     if (!/^\d{1,6}$/.test(fixtureId)) return res.status(400).json({ error: 'Invalid fixture id' });
-    const data = await getLineups(Number(fixtureId));
-    res.set('Cache-Control', data.status === 'confirmed' ? 'public, max-age=600' : 'public, max-age=60');
-    res.json(data);
+    try {
+      const data = await getLineups(Number(fixtureId));
+      res.set('Cache-Control', data.status === 'confirmed' ? 'public, max-age=600' : 'public, max-age=60');
+      res.json(data);
+    } catch (err) {
+      console.error('Line-ups error:', err.message);
+      res.status(502).json({ error: 'Could not load line-ups right now.' });
+    }
   });
 }

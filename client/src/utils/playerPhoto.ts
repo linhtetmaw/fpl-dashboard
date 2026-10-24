@@ -19,7 +19,7 @@ function getPlayerPhotoQuery(
   return { name: name || '', code };
 }
 
-/** Player photo URL (server: this season's official photo, then TheSportsDB at the player's current club, then the old PL photo). */
+/** Player photo URL (server: this season's official photo, then TheSportsDB at the player's current club, else the FPL silhouette). */
 export function getPlayerImageUrl(
   element: Pick<FplElement, 'first_name' | 'second_name' | 'web_name' | 'code' | 'photo'> | undefined,
   teamName: string | undefined
@@ -31,6 +31,6 @@ export function getPlayerImageUrl(
   if (q.code) params.set('code', q.code);
   if (teamName?.trim()) params.set('team', teamName.trim());
   // Bump when the server's photo source changes, so browsers drop photos they cached from the old one.
-  params.set('v', '2');
+  params.set('v', '3');
   return `/api/player-photo?${params.toString()}`;
 }

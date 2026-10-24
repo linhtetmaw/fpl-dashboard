@@ -8,6 +8,7 @@ import PlayerDetailCard from './PlayerDetailCard';
 import { getPlayerImageUrl } from '../utils/playerPhoto';
 import { getAvailability } from '../utils/availability';
 import AvailabilityBadge from './AvailabilityBadge';
+import GoalAssistBadges from './GoalAssistBadges';
 
 /** Group starting XI by element_type: 1=GKP, 2=DEF, 3=MID, 4=FWD. Order: FWD top → GKP bottom (vertical pitch). */
 function getFormationRows(players: PlayerPoints[]): PlayerPoints[][] {
@@ -128,6 +129,13 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
             </span>
           )}
           {availability && <AvailabilityBadge availability={availability} className={`absolute left-0.5 ${isSub ? 'top-4' : 'top-0.5'}`} />}
+          {!isReplaced && (
+            <GoalAssistBadges
+              goals={p.goals_scored ?? 0}
+              assists={p.assists ?? 0}
+              className={`absolute right-0.5 ${p.is_captain || p.is_vice_captain ? 'top-5' : 'top-0.5'}`}
+            />
+          )}
           {inPlay && <LiveBadge label="In play" className="absolute bottom-0.5 left-1/2 -translate-x-1/2 whitespace-nowrap !text-[8px]" />}
         </div>
         <p className="w-full truncate bg-fpl-dark/95 px-1 py-0.5 text-center text-[10px] sm:text-[11px] font-semibold text-white">

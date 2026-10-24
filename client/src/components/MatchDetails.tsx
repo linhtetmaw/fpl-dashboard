@@ -32,15 +32,16 @@ export default function MatchDetails({ fixture: f, elementsById, teams }: MatchD
     enabled: !f.started && f.event > 1,
     staleTime: 60 * 60 * 1000,
   });
-  // Announced line-ups (about an hour before kick-off); the server only looks from 90 minutes before.
+  // Line-ups and positions from ESPN: announced about an hour before kick-off (the server looks from 90 minutes
+  // before); until then, each team's line-up in its last match, which the predicted XI is built from.
   const kickoff = f.kickoff_time ? new Date(f.kickoff_time).getTime() : 0;
   const nearKickoff = !f.finished && !f.finished_provisional && kickoff > 0 && Date.now() > kickoff - 90 * 60 * 1000;
   const { data: confirmed } = useQuery({
     queryKey: ['lineups', f.id],
     queryFn: () => getConfirmedLineups(f.id),
-    enabled: nearKickoff,
     staleTime: 60 * 1000,
-    refetchInterval: (q) => (q.state.data?.status === 'confirmed' ? false : 2 * 60 * 1000),
+    retry: 1,
+    refetchInterval: (q) => (q.state.data?.status !== 'confirmed' && nearKickoff ? 2 * 60 * 1000 : false),
   });
   const [side, setSide] = useState<'h' | 'a'>('h');
 
@@ -61,11 +62,16 @@ export default function MatchDetails({ fixture: f, elementsById, teams }: MatchD
     return pts + (awarded ? 0 : bonus.get(element) ?? 0);
   };
 
-  const stats = { bps: bpsByElement, dc: dcByElement, bonus, points: matchPoints };
+  // Scorers and assisters in this match; fixtures refresh every minute while it's live.
+  const goals = new Map(fixtureStat(f, 'goals_scored').map((r) => [r.element, r.value]));
+  const assists = new Map(fixtureStat(f, 'assists').map((r) => [r.element, r.value]));
+  const stats = { bps: bpsByElement, dc: dcByElement, goals, assists, bonus, points: matchPoints };
   const elements = useMemo(() => [...elementsById.values()], [elementsById]);
   const lineupTeam = side === 'h' ? f.team_h : f.team_a;
-  const confirmedSide = confirmed?.status === 'confirmed' ? confirmed[side === 'h' ? 'home' : 'away'] : null;
-  const lineup = buildLineup(f, lineupTeam, elements, liveData, prevLive, f.event - 1, stats, confirmedSide);
+  const key = side === 'h' ? 'home' : 'away';
+  const confirmedSide = confirmed?.status === 'confirmed' ? confirmed[key] : null;
+  const lastMatch = confirmed?.status === 'pending' ? confirmed.previous?.[key] : null;
+  const lineup = buildLineup(f, lineupTeam, elements, liveData, prevLive, f.event - 1, stats, confirmedSide, lastMatch);
 
   const tab = (active: boolean) =>
     `rounded-md px-2.5 py-1 text-xs font-semibold transition-colors ${active ? 'bg-fpl-brand/15 text-fpl-brand' : 'text-slate-400 hover:text-white'}`;
@@ -89,7 +95,7 @@ export default function MatchDetails({ fixture: f, elementsById, teams }: MatchD
       )}
       <p className="mt-2 text-[11px] text-slate-500">
         {lineup.kind === 'predicted'
-          ? 'Predicted from last gameweek’s line-up, starts this season and injury news. The confirmed XI replaces it when the teams are announced, about an hour before kick-off.'
+          ? `Predicted from ${lineup.rows ? 'the team’s last match (same shape and players, with injured or suspended players replaced)' : 'last gameweek’s line-up, starts this season and injury news'}. The confirmed XI replaces it when the teams are announced, about an hour before kick-off.`
           : lineup.kind === 'confirmed'
           ? 'Confirmed line-up, announced before kick-off. Points, BPS and defensive contribution appear once the match starts.'
           : `Points include bonus (BON) and defensive contribution (DC: +2 at 10 for defenders, 12 for midfielders and forwards)${
