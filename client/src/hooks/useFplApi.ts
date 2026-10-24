@@ -99,8 +99,9 @@ export function useFixtures(gameweek: number | null) {
     queryFn: () => getFixtures(gameweek ?? undefined),
     enabled: gameweek != null && gameweek > 0,
     staleTime: 2 * 60 * 1000,
-    // Keep scores, minutes and "in play" badges current while a match is on (the server caches FPL for 2 min).
-    refetchInterval: (query) => (anyFixtureLive(query.state.data) ? 60 * 1000 : false),
+    // Keep scores, minutes and "in play" badges current while a match is on (the server refreshes from FPL every
+    // 30 seconds during a gameweek).
+    refetchInterval: (query) => (anyFixtureLive(query.state.data) ? 30 * 1000 : false),
   });
 }
 

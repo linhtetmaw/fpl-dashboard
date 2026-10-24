@@ -44,9 +44,30 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <!-- Loading logo (also used by the app's page loader, components/PageLoader.tsx): the three bars bob in turn. -->
+    <style>
+      .fplh-loader { position: fixed; inset: 0; z-index: 60; display: flex; align-items: center; justify-content: center; background: #13001a; transition: opacity 250ms ease-out; }
+      [data-theme='light'] .fplh-loader { background: #f5f2f6; }
+      .fplh-loader svg { width: 72px; height: 72px; }
+      .fplh-bar { animation: fplh-bob 1s ease-in-out infinite; }
+      .fplh-bar-2 { animation-delay: 0.15s; }
+      .fplh-bar-3 { animation-delay: 0.3s; }
+      @keyframes fplh-bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+      @media (prefers-reduced-motion: reduce) { .fplh-bar { animation: none; } }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Shown until the app starts; React replaces it with the same loader (PageLoader) while the first page loads. -->
+      <div class="fplh-loader" role="status" aria-label="Loading FPL House">
+        <svg viewBox="0 0 64 64" aria-hidden="true">
+          <rect width="64" height="64" rx="14" fill="#37003C" />
+          <polygon class="fplh-bar" points="12,52 12,33 23,24 23,52" fill="#FFFFFF" />
+          <polygon class="fplh-bar fplh-bar-2" points="26,52 26,21 32,15 38,21 38,52" fill="#00FF85" />
+          <polygon class="fplh-bar fplh-bar-3" points="41,52 41,24 52,33 52,52" fill="#FFFFFF" />
+        </svg>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

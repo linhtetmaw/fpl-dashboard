@@ -21,6 +21,8 @@ const NOT_FOUND_TTL_MS = 60 * 1000;
 
 const MIN = 60 * 1000;
 const HOUR = 60 * MIN;
+/** Fixtures (minute, score) and live points of a gameweek that has started. */
+const LIVE_TTL = 30 * 1000;
 
 export class FplError extends Error {
   constructor(status, message) {
@@ -75,12 +77,20 @@ function eventInfo(gw) {
 export function ttlFor(path) {
   let m;
   if (path === '/bootstrap-static/') return 5 * MIN;
-  if ((m = path.match(/^\/event\/(\d+)\/live\/$/))) return eventInfo(Number(m[1]))?.finished ? 6 * HOUR : MIN;
+  // Live points and match minutes: every 30 seconds while the gameweek is under way (FPL itself moves the minute
+  // about once a minute), so the site trails FPL by well under a minute.
+  if ((m = path.match(/^\/event\/(\d+)\/live\/$/))) {
+    const ev = eventInfo(Number(m[1]));
+    return ev?.finished ? 6 * HOUR : ev?.deadlinePassed ? LIVE_TTL : MIN;
+  }
   if ((m = path.match(/^\/entry\/\d+\/event\/(\d+)\/picks\/$/))) {
     // Picks are locked at the deadline.
     return eventInfo(Number(m[1]))?.deadlinePassed ? 6 * HOUR : MIN;
   }
-  if ((m = path.match(/^\/fixtures\/\?event=(\d+)$/))) return eventInfo(Number(m[1]))?.finished ? HOUR : 2 * MIN;
+  if ((m = path.match(/^\/fixtures\/\?event=(\d+)$/))) {
+    const ev = eventInfo(Number(m[1]));
+    return ev?.finished ? HOUR : ev?.deadlinePassed ? LIVE_TTL : 2 * MIN;
+  }
   if (path.startsWith('/fixtures/')) return 2 * MIN;
   // History is used for transfer hits, team value and past GW points, none of which move during a live
   // gameweek (live points come from /event/N/live/), so it can be cached for longer.
