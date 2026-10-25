@@ -538,13 +538,28 @@ function buildClubsStillPlaying(fixturesJson, gw) {
   return clubs;
 }
 
+/** Set of club ids with a fixture this GW that hasn't kicked off yet; null when fixtures are unavailable. */
+function buildClubsYetToStart(fixturesJson, gw) {
+  if (!Array.isArray(fixturesJson)) return null;
+  const clubs = new Set();
+  for (const f of fixturesJson) {
+    if (f.event === gw && !f.started) {
+      clubs.add(f.team_h);
+      clubs.add(f.team_a);
+    }
+  }
+  return clubs;
+}
+
 /**
  * Compute GW points from picks + live. Mirrors computeTeamPointsSummary on the client: Bench Boost, captain → vice-captain
- * armband transfer, and FPL auto-subs (only once a starter's fixtures are over; GKP↔GKP, outfield keeps ≥3 DEF, ≥2 MID, ≥1 FWD).
+ * armband transfer, and FPL auto-subs (only once a starter's fixtures are over; GKP↔GKP, outfield keeps ≥3 DEF, ≥2 MID, ≥1 FWD;
+ * a bench player whose match is still to come keeps their place in the queue, so the next one only comes on if they don't play).
  * elementById: element id -> { type, team }. clubsStillPlaying: from buildClubsStillPlaying (null = unknown, no subs applied).
- * Returns { chip, points }.
+ * clubsYetToStart: from buildClubsYetToStart. Returns { chip, points, toStart }, where toStart is how many of the
+ * players who count (the XI after auto-subs, all 15 with Bench Boost) still have a match to kick off (null if unknown).
  */
-function computeGwPointsFromPicks(picksJson, liveByElement, elementById, clubsStillPlaying) {
+function computeGwPointsFromPicks(picksJson, liveByElement, elementById, clubsStillPlaying, clubsYetToStart = null) {
   const rawChip = picksJson?.chips?.[0]?.name ?? picksJson?.active_chip ?? null;
   const chip = rawChip != null ? String(rawChip).trim() : null;
   const picks = picksJson?.picks ?? [];
@@ -584,14 +599,16 @@ function computeGwPointsFromPicks(picksJson, liveByElement, elementById, clubsSt
 
   const usedBenchIndices = new Set();
   let startingPoints = 0;
+  const counted = [];
   for (const p of starting) {
     if (isBboost || !didNotPlay(p)) {
       startingPoints += getPts(p);
+      counted.push(p);
       continue;
     }
     const outType = getType(p);
     const subIdx = bench.findIndex((b, i) => {
-      if (usedBenchIndices.has(i) || getMins(b) === 0) return false;
+      if (usedBenchIndices.has(i) || didNotPlay(b)) return false;
       const inType = getType(b);
       if (outType === 1 || inType === 1) return outType === inType;
       return formationValidAfterSwap(outType, inType);
@@ -601,8 +618,13 @@ function computeGwPointsFromPicks(picksJson, liveByElement, elementById, clubsSt
       typeCounts[outType] -= 1;
       typeCounts[getType(bench[subIdx])] += 1;
       startingPoints += getPts(bench[subIdx]);
+      counted.push(bench[subIdx]);
     }
   }
+  if (isBboost) counted.push(...bench);
+  const toStart = clubsYetToStart
+    ? counted.filter((p) => clubsYetToStart.has(elementById?.get(p.element)?.team)).length
+    : null;
 
   let benchPoints = 0;
   for (let i = 0; i < bench.length; i++) {
@@ -611,7 +633,7 @@ function computeGwPointsFromPicks(picksJson, liveByElement, elementById, clubsSt
   }
 
   const sum = startingPoints + (isBboost ? benchPoints : 0);
-  return { chip, points: sum };
+  return { chip, points: sum, toStart };
 }
 
 /** How long a computed league table page is reused. Live points move every minute or so during matches. */
@@ -654,6 +676,7 @@ async function buildLeagueTablePage(id, page, gw) {
     if (el.id != null && el.element_type != null) elementById.set(el.id, { type: el.element_type, team: el.team });
   }
   const clubsStillPlaying = buildClubsStillPlaying(fixturesJson, gw);
+  const clubsYetToStart = buildClubsYetToStart(fixturesJson, gw);
 
   // Cached FPL responses are shared, so build new row objects rather than editing them.
   data.standings.results = await Promise.all(
@@ -664,13 +687,20 @@ async function buildLeagueTablePage(id, page, gw) {
       ]);
       const cur = (histData?.current ?? []).find((c) => c.event === gw);
       const eventTransfersCost = cur?.event_transfers_cost != null ? Number(cur.event_transfers_cost) : 0;
-      const { chip, points } = computeGwPointsFromPicks(pickData, liveByElement, elementById, clubsStillPlaying);
+      const { chip, points, toStart } = computeGwPointsFromPicks(
+        pickData,
+        liveByElement,
+        elementById,
+        clubsStillPlaying,
+        clubsYetToStart
+      );
       const useComputed = hasLiveData && pickData?.picks?.length > 0;
       return {
         ...r,
         chip: chip ?? null,
         event_total: useComputed ? Math.max(0, points - eventTransfersCost) : r.event_total,
         captain: pickData?.picks?.find((p) => p.is_captain)?.element ?? null,
+        to_start: pickData?.picks?.length > 0 ? toStart : null,
         value: typeof cur?.value === 'number' ? cur.value : null,
         history: (histData?.current ?? []).map((c) => [c.event, c.points]),
       };

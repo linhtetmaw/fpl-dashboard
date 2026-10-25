@@ -46,7 +46,12 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
   const hasEffective = effectivePitchPlayers?.length === 11;
   const benchUnused = hasEffective ? (effectiveBench ?? []) : [];
   const replaced = hasEffective ? (replacedStarters ?? []) : [];
-  const benchPlayers = benchUnused.length > 0 || replaced.length > 0 ? [...replaced, ...benchUnused] : getBenchPlayers(players);
+  // In bench order: a replaced starter sits in the slot of the sub who came on, so the goalkeeper stays first.
+  const benchPlayers =
+    benchUnused.length > 0 || replaced.length > 0
+      ? [...replaced, ...benchUnused].sort((a, b) => a.position - b.position)
+      : getBenchPlayers(players);
+  const replacedIds = new Set(replaced.map((p) => p.element_id));
   const rows = getFormationRows(pitchPlayers);
   const [gkRow, defRow, midRow, fwdRow] = rows;
   const elementById = new Map<number, FplElement>(
@@ -133,6 +138,8 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
             <GoalAssistBadges
               goals={p.goals_scored ?? 0}
               assists={p.assists ?? 0}
+              yellowCards={p.yellow_cards ?? 0}
+              redCards={p.red_cards ?? 0}
               className={`absolute right-0.5 ${p.is_captain || p.is_vice_captain ? 'top-5' : 'top-0.5'}`}
             />
           )}
@@ -204,12 +211,12 @@ export default function PitchView({ players, bootstrap, effectivePitchPlayers, e
         <div className={rowClass}>{(gkRow ?? []).map((p) => renderPlayerCard(p, {}))}</div>
       </div>
 
-      {/* Bench: replaced starters (did not play) first, then unused bench players */}
+      {/* Bench in bench order; replaced starters (did not play) shown faded in their sub's slot */}
       {bench.length > 0 && (
         <div className="border-t border-fpl-border bg-fpl-raised/50 px-3 pt-2.5 pb-4 sm:px-5">
           <p className="eyebrow text-center mb-2.5">Bench</p>
           <div className="flex flex-wrap justify-center gap-1.5 sm:gap-3">
-            {bench.map((p, i) => renderPlayerCard(p, { isReplaced: i < replaced.length }))}
+            {bench.map((p) => renderPlayerCard(p, { isReplaced: replacedIds.has(p.element_id) }))}
           </div>
         </div>
       )}

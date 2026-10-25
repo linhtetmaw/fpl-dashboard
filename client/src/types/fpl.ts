@@ -180,6 +180,8 @@ export interface LiveStats {
   bps?: number;
   /** Defensive contribution count (tackles + clearances/blocks/interceptions, + recoveries for MID/FWD). */
   defensive_contribution?: number;
+  yellow_cards?: number;
+  red_cards?: number;
 }
 
 /** Points breakdown for one fixture (a player has two in a double gameweek). */
@@ -231,6 +233,8 @@ export interface StandingEntry {
   captain?: number | null;
   /** Team value × 10 at this GW (standings-with-chips). */
   value?: number | null;
+  /** Players who count (XI after auto-subs, 15 with Bench Boost) whose match hasn't kicked off yet (standings-with-chips). */
+  to_start?: number | null;
   /** [gameweek, points] for every played GW (standings-with-chips); used for the Monthly sort. */
   history?: [number, number][];
 }
@@ -264,6 +268,8 @@ export interface PlayerPoints {
   projected_bonus?: number;
   /** Defensive contribution count so far this gameweek. */
   defensive_contribution?: number;
+  yellow_cards?: number;
+  red_cards?: number;
 }
 
 export interface TeamPointsSummary {

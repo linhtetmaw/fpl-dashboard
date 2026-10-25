@@ -187,8 +187,9 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div
-                    // Match the pitch column's height on desktop; on phones use a fixed, scrollable panel.
-                    className="lg:w-[480px] lg:flex-shrink-0 flex flex-col min-h-0 h-[600px] lg:h-[var(--league-panel-h)]"
+                    // Match the pitch column's height on desktop; on phones the panel fills the screen below the
+                    // header (about 10 teams), and the table scrolls inside it.
+                    className="lg:w-[480px] lg:flex-shrink-0 flex flex-col h-[calc(100dvh-8rem)] min-h-[600px] lg:min-h-0 lg:h-[var(--league-panel-h)]"
                     style={
                       pitchHeight != null
                         ? ({ '--league-panel-h': `${pitchHeight}px` } as CSSProperties)

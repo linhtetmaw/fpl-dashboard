@@ -212,6 +212,8 @@ export function computeTeamPointsSummary(
       total_points_effective: total_effective,
       projected_bonus,
       defensive_contribution: stats.defensive_contribution ?? 0,
+      yellow_cards: stats.yellow_cards ?? 0,
+      red_cards: stats.red_cards ?? 0,
     });
   }
 
@@ -234,9 +236,10 @@ export function computeTeamPointsSummary(
   const starting = players.filter((p) => !p.is_on_bench).sort((a, b) => a.position - b.position);
   const bench = players.filter((p) => p.is_on_bench).sort((a, b) => a.position - b.position);
 
-  // FPL auto-sub rules: starters are processed in pitch order; each takes the first bench player (in bench order) who played.
-  // GKP only swaps with GKP. Outfield swaps are allowed across positions as long as the XI keeps at least 3 DEF, 2 MID and 1 FWD.
-  // No auto-subs when Bench Boost is active (all 15 score).
+  // FPL auto-sub rules: starters are processed in pitch order; each takes the first bench player (in bench order) who
+  // played. GKP only swaps with GKP. Outfield swaps are allowed across positions as long as the XI keeps at least 3 DEF,
+  // 2 MID and 1 FWD. A bench player whose match hasn't been played yet keeps their place in the queue (shown as the
+  // sub until it's over); the next one is only reached if they end up not playing. No auto-subs with Bench Boost.
   const typeCounts: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0 };
   for (const s of starting) typeCounts[s.element_type] = (typeCounts[s.element_type] ?? 0) + 1;
   const formationValidAfterSwap = (outType: number, inType: number) => {
@@ -251,7 +254,7 @@ export function computeTeamPointsSummary(
     for (const starter of starting) {
       if (!didNotPlay(starter)) continue;
       const subIdx = bench.findIndex((b, i) => {
-        if (usedBenchIndices.has(i) || getMins(b) === 0) return false;
+        if (usedBenchIndices.has(i) || didNotPlay(b)) return false;
         if (starter.element_type === 1 || b.element_type === 1) return starter.element_type === b.element_type;
         return formationValidAfterSwap(starter.element_type, b.element_type);
       });
@@ -271,7 +274,8 @@ export function computeTeamPointsSummary(
     if (sub) {
       effectivePitchPlayers.push({ ...sub, position: starter.position, is_on_bench: false, is_substitute: true });
       starting_points += sub.total_points_effective;
-      replacedStarters.push(starter);
+      // The starter goes to the bench slot the sub came from (the goalkeeper stays first, as in FPL).
+      replacedStarters.push({ ...starter, position: sub.position });
     } else {
       effectivePitchPlayers.push(starter);
       starting_points += starter.total_points_effective;

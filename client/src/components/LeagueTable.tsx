@@ -30,6 +30,8 @@ interface RowData {
   chip?: string | null;
   /** Team value * 10 for selected GW (from entry history). */
   teamValue?: number | null;
+  /** Players yet to kick off this GW (null if unknown). */
+  toStart?: number | null;
 }
 
 const CHIP_LABELS: Record<string, string> = {
@@ -94,6 +96,8 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
 
   /** Entry ids with the highest event_total in this league, once every match of the gameweek has been played. */
   const gwFinished = bootstrap?.events?.find((e) => e.id === gameweek)?.finished ?? false;
+  // "To start" only matters while the gameweek is on (and needs the league table's live data).
+  const showToStart = !gwFinished && results.some((r) => r.to_start != null);
   const gwWinnerEntries = useMemo(() => {
     if (!gwFinished || results.length === 0) return new Set<number>();
     const maxPoints = Math.max(...results.map((r) => r.event_total ?? 0));
@@ -146,6 +150,7 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
       isCurrentUser: r.entry === teamId,
       chip: r.chip ?? (r.entry === teamId ? currentUserChip ?? null : null),
       teamValue: valueByEntry.get(r.entry) ?? null,
+      toStart: r.to_start ?? null,
     }));
 
     if (sortBy === 'event_total' || sortBy === 'monthly') {
@@ -171,7 +176,7 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
           row.isCurrentUser ? 'bg-fpl-brand/10 shadow-[inset_3px_0_0_0_#00FF85]' : ''
         } ${onTeamClick ? 'cursor-pointer hover:bg-white/[0.03]' : ''}`}
       >
-        <td className="px-3 py-2 text-slate-400 font-medium tabular-nums">
+        <td className="px-2 sm:px-3 py-2 text-slate-400 font-medium tabular-nums">
           <span className="inline-flex items-center gap-0.5">
             {position.toLocaleString()}
             {isUp && <span className="text-emerald-400 text-[10px]" title="Rank up">▲</span>}
@@ -194,13 +199,21 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
               </span>
             )}
           </div>
-          <div className="text-slate-500 text-[11px] mt-0.5 truncate max-w-[160px] md:max-w-none md:overflow-visible md:whitespace-normal">
+          <div className="text-slate-500 text-[11px] mt-0.5 truncate max-w-[140px] md:max-w-none md:overflow-visible md:whitespace-normal">
             {row.player_name}
             {captainByEntry.get(row.entry) ? <> · <span className="text-slate-400">C: {captainByEntry.get(row.entry)}</span></> : null}
           </div>
         </td>
+        {showToStart && (
+          <td
+            className={`px-1 py-2 text-center tabular-nums ${row.toStart ? 'font-semibold text-slate-200' : 'text-slate-600'}`}
+            title={row.toStart != null ? `${row.toStart} player${row.toStart === 1 ? '' : 's'} yet to kick off` : undefined}
+          >
+            {row.toStart ?? '—'}
+          </td>
+        )}
         <td className="px-2 py-2 text-right font-display font-bold text-white tabular-nums">{row.points}</td>
-        <td className="px-3 py-2 text-right text-slate-400 tabular-nums">
+        <td className="px-2 sm:px-3 py-2 text-right text-slate-400 tabular-nums">
           {row.teamValue != null ? (row.teamValue / 10).toFixed(1) : '—'}
         </td>
       </tr>
@@ -246,10 +259,15 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
           <table className="w-full text-xs">
             <thead>
               <tr className="sticky top-0 z-10 bg-fpl-raised border-b border-fpl-border text-left">
-                <th className="eyebrow px-3 py-2.5 w-12">#</th>
+                <th className="eyebrow px-2 sm:px-3 py-2.5 w-10 sm:w-12">#</th>
                 <th className="eyebrow px-2 py-2.5">Team</th>
+                {showToStart && (
+                  <th className="eyebrow px-1 py-2.5 text-center w-12 leading-tight" title="Players yet to kick off this gameweek">
+                    To start
+                  </th>
+                )}
                 <th className="eyebrow px-2 py-2.5 text-right w-14">Pts</th>
-                <th className="eyebrow px-3 py-2.5 text-right w-16">Value</th>
+                <th className="eyebrow px-2 sm:px-3 py-2.5 text-right w-14 sm:w-16">Value</th>
               </tr>
             </thead>
             <tbody>

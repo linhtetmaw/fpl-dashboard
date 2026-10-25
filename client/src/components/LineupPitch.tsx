@@ -21,6 +21,8 @@ export interface LineupPlayer {
   bonus: number;
   goals: number;
   assists: number;
+  yellowCards: number;
+  redCards: number;
 }
 
 export interface Lineup {
@@ -67,6 +69,8 @@ interface MatchStats {
   dc: Map<number, number>;
   goals: Map<number, number>;
   assists: Map<number, number>;
+  yellowCards: Map<number, number>;
+  redCards: Map<number, number>;
   bonus: Map<number, number>;
   points: (element: number) => number | null;
 }
@@ -254,6 +258,8 @@ export function buildLineup(
     bonus: kickedOff ? stats.bonus.get(e.id) ?? 0 : 0,
     goals: kickedOff ? stats.goals.get(e.id) ?? 0 : 0,
     assists: kickedOff ? stats.assists.get(e.id) ?? 0 : 0,
+    yellowCards: kickedOff ? stats.yellowCards.get(e.id) ?? 0 : 0,
+    redCards: kickedOff ? stats.redCards.get(e.id) ?? 0 : 0,
   });
 
   if (f.started) {
@@ -354,7 +360,13 @@ function PlayerTile({
           </div>
         )}
         {availability && <AvailabilityBadge availability={availability} className="absolute left-0.5 top-0.5" />}
-        <GoalAssistBadges goals={p.goals} assists={p.assists} className="absolute right-0.5 top-0.5" />
+        <GoalAssistBadges
+          goals={p.goals}
+          assists={p.assists}
+          yellowCards={p.yellowCards}
+          redCards={p.redCards}
+          className="absolute right-0.5 top-0.5"
+        />
       </div>
       <p className="w-full truncate bg-fpl-dark/95 px-1 py-0.5 text-center text-[10px] font-semibold text-white sm:text-[11px]">{e.web_name}</p>
       {p.points != null ? (

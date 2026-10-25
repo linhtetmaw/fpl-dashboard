@@ -62,10 +62,12 @@ export default function MatchDetails({ fixture: f, elementsById, teams }: MatchD
     return pts + (awarded ? 0 : bonus.get(element) ?? 0);
   };
 
-  // Scorers and assisters in this match; fixtures refresh every minute while it's live.
+  // Scorers, assisters and cards in this match; fixtures refresh every 30 seconds while it's live.
   const goals = new Map(fixtureStat(f, 'goals_scored').map((r) => [r.element, r.value]));
   const assists = new Map(fixtureStat(f, 'assists').map((r) => [r.element, r.value]));
-  const stats = { bps: bpsByElement, dc: dcByElement, goals, assists, bonus, points: matchPoints };
+  const yellowCards = new Map(fixtureStat(f, 'yellow_cards').map((r) => [r.element, r.value]));
+  const redCards = new Map(fixtureStat(f, 'red_cards').map((r) => [r.element, r.value]));
+  const stats = { bps: bpsByElement, dc: dcByElement, goals, assists, yellowCards, redCards, bonus, points: matchPoints };
   const elements = useMemo(() => [...elementsById.values()], [elementsById]);
   const lineupTeam = side === 'h' ? f.team_h : f.team_a;
   const key = side === 'h' ? 'home' : 'away';

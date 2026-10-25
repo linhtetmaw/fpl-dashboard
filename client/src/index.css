@@ -166,6 +166,16 @@ body {
   border-radius: 3px;
 }
 
+/* Phones zoom the page into any text box or dropdown smaller than 16px when it's tapped (iPhone Safari), so give
+   them 16px on touch screens. (Pinch-zoom stays on.) */
+@media (hover: none) and (pointer: coarse) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* Dropdown arrow: white and visible on dark backgrounds */
 .select-arrow-white {
   appearance: none;
