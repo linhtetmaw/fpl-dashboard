@@ -16,21 +16,43 @@ interface LeagueSelectorProps {
   currentUserChip?: string | null;
 }
 
+/** The league being viewed, kept for this tab: tapping a team in the table loads that team (the page rebuilds this
+ * picker), and the shared mini-league should stay selected rather than jump to the new team's first league. */
+const VIEWING_LEAGUE_KEY = 'fpl_viewing_league';
+
+function getViewingLeagueId(): number | null {
+  try {
+    const n = parseInt(sessionStorage.getItem(VIEWING_LEAGUE_KEY) ?? '', 10);
+    return Number.isInteger(n) && n > 0 ? n : null;
+  } catch {
+    return null;
+  }
+}
+
+/** First of the candidates this team is in, else its first league. */
+function pickLeague(leagues: ClassicLeague[], ...candidates: (number | null | undefined)[]): number | null {
+  for (const id of candidates) if (id != null && leagues.some((l) => l.id === id)) return id;
+  return leagues[0]?.id ?? null;
+}
+
 export default function LeagueSelector({ leagues, teamId, bootstrap, onTeamClick, initialLeagueId, gameweek, currentUserChip }: LeagueSelectorProps) {
-  const preferredInitial =
-    leagues.length && initialLeagueId != null && leagues.some((l) => l.id === initialLeagueId)
-      ? initialLeagueId
-      : leagues[0]?.id ?? null;
-  const [selectedId, setSelectedId] = useState<number | null>(preferredInitial);
+  const [selectedId, setSelectedId] = useState<number | null>(() =>
+    pickLeague(leagues, getViewingLeagueId(), initialLeagueId)
+  );
 
   useEffect(() => {
     if (!leagues.length) return;
-    const firstId = leagues[0].id;
-    const preferred = initialLeagueId != null && leagues.some((l) => l.id === initialLeagueId)
-      ? initialLeagueId
-      : firstId;
-    setSelectedId((prev) => (leagues.some((l) => l.id === prev) ? prev : preferred));
+    setSelectedId((prev) => pickLeague(leagues, prev, getViewingLeagueId(), initialLeagueId));
   }, [leagues, initialLeagueId]);
+
+  useEffect(() => {
+    if (selectedId == null) return;
+    try {
+      sessionStorage.setItem(VIEWING_LEAGUE_KEY, String(selectedId));
+    } catch {
+      // Private mode etc.: the league just isn't remembered.
+    }
+  }, [selectedId]);
 
   if (!leagues.length) {
     return (
