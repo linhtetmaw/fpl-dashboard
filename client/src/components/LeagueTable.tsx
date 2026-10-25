@@ -104,6 +104,13 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
     const winners = new Set(results.filter((r) => (r.event_total ?? 0) === maxPoints).map((r) => r.entry));
     return winners;
   }, [gwFinished, results]);
+  /** The lowest gameweek score once the gameweek is over, but only when every team in the league is loaded (big
+   * leagues load 50 at a time, so the last team on page 1 isn't necessarily the league's last). */
+  const gwLastEntries = useMemo(() => {
+    if (!gwFinished || hasNextPage || results.length < 2) return new Set<number>();
+    const minPoints = Math.min(...results.map((r) => r.event_total ?? 0));
+    return new Set(results.filter((r) => (r.event_total ?? 0) === minPoints).map((r) => r.entry));
+  }, [gwFinished, hasNextPage, results]);
 
   // Captain, team value and per-GW points come with each row from the server (standings-with-chips), so the
   // table needs no extra request per team.
@@ -191,6 +198,16 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
             {gwWinnerEntries.has(row.entry) && (
               <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-amber-400/15 text-amber-300 ring-1 ring-inset ring-amber-400/40 shrink-0">
                 Winner
+              </span>
+            )}
+            {gwLastEntries.has(row.entry) && !gwWinnerEntries.has(row.entry) && (
+              <span
+                className="inline-flex items-center shrink-0 text-sm leading-none"
+                role="img"
+                aria-label="Lowest score this gameweek"
+                title="Lowest score this gameweek"
+              >
+                💩
               </span>
             )}
             {row.chip && (
