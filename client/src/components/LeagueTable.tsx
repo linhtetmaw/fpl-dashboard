@@ -101,14 +101,15 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
   const gwStarted = gwFinished || (gwFixtures ?? []).some((f) => f.started);
   // "To start" only matters while the gameweek is on (and needs the league table's live data).
   const showToStart = !gwFinished && results.some((r) => r.to_start != null);
-  /** Top gameweek score: live from the first kick-off (the leader so far), final once the gameweek is over. Nobody
-   * until someone has scored, so a 0–0 start doesn't make everyone a winner. */
+  /** Top gameweek score: live from the first kick-off (the leader so far), final once the gameweek is over. Only when
+   * every team in the league is loaded: the table loads 50 at a time by overall rank, so the gameweek's top scorer
+   * may not be on page 1. Nobody until someone has scored, so a 0–0 start doesn't make everyone a winner. */
   const gwWinnerEntries = useMemo(() => {
-    if (!gwStarted || results.length === 0) return new Set<number>();
+    if (!gwStarted || hasNextPage || results.length === 0) return new Set<number>();
     const maxPoints = Math.max(...results.map((r) => r.event_total ?? 0));
     if (maxPoints <= 0) return new Set<number>();
     return new Set(results.filter((r) => (r.event_total ?? 0) === maxPoints).map((r) => r.entry));
-  }, [gwStarted, results]);
+  }, [gwStarted, hasNextPage, results]);
   /** Lowest gameweek score, live like the winner, but only when every team in the league is loaded (big leagues
    * load 50 at a time, so the last team on page 1 isn't necessarily the league's last), and not while all are level. */
   const gwLastEntries = useMemo(() => {
@@ -313,6 +314,13 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
               Showing top {results.length.toLocaleString()}
               {rankCount != null && rankCount > results.length ? ` of ${rankCount.toLocaleString()}` : ''} teams
             </span>
+            {hasNextPage && (
+              <span className="text-center">
+                {sortBy === 'event_total' || sortBy === 'monthly'
+                  ? 'Sorted among the teams loaded so far (by overall rank). Load all teams to find the real leaders.'
+                  : 'Winner and 💩 badges appear once every team is loaded.'}
+              </span>
+            )}
             {hasNextPage && (
               <button
                 type="button"
