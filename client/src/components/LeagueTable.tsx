@@ -3,6 +3,7 @@ import { useInfiniteQuery } from '@tanstack/react-query';
 import type { BootstrapStatic } from '../types/fpl';
 import type { LeagueSortBy } from '../types/fpl';
 import { getLeagueStandingsWithChips, getLeagueStandings } from '../api/fpl';
+import { useFixtures } from '../hooks/useFplApi';
 
 interface LeagueTableProps {
   leagueId: number;
@@ -94,23 +95,29 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
   );
   const userLoaded = results.some((r) => r.entry === teamId);
 
-  /** Entry ids with the highest event_total in this league, once every match of the gameweek has been played. */
   const gwFinished = bootstrap?.events?.find((e) => e.id === gameweek)?.finished ?? false;
+  // The gameweek's first match has kicked off (shares the fixtures query the rest of the page uses).
+  const { data: gwFixtures } = useFixtures(gameweek);
+  const gwStarted = gwFinished || (gwFixtures ?? []).some((f) => f.started);
   // "To start" only matters while the gameweek is on (and needs the league table's live data).
   const showToStart = !gwFinished && results.some((r) => r.to_start != null);
+  /** Top gameweek score: live from the first kick-off (the leader so far), final once the gameweek is over. Nobody
+   * until someone has scored, so a 0–0 start doesn't make everyone a winner. */
   const gwWinnerEntries = useMemo(() => {
-    if (!gwFinished || results.length === 0) return new Set<number>();
+    if (!gwStarted || results.length === 0) return new Set<number>();
     const maxPoints = Math.max(...results.map((r) => r.event_total ?? 0));
-    const winners = new Set(results.filter((r) => (r.event_total ?? 0) === maxPoints).map((r) => r.entry));
-    return winners;
-  }, [gwFinished, results]);
-  /** The lowest gameweek score once the gameweek is over, but only when every team in the league is loaded (big
-   * leagues load 50 at a time, so the last team on page 1 isn't necessarily the league's last). */
+    if (maxPoints <= 0) return new Set<number>();
+    return new Set(results.filter((r) => (r.event_total ?? 0) === maxPoints).map((r) => r.entry));
+  }, [gwStarted, results]);
+  /** Lowest gameweek score, live like the winner, but only when every team in the league is loaded (big leagues
+   * load 50 at a time, so the last team on page 1 isn't necessarily the league's last), and not while all are level. */
   const gwLastEntries = useMemo(() => {
-    if (!gwFinished || hasNextPage || results.length < 2) return new Set<number>();
-    const minPoints = Math.min(...results.map((r) => r.event_total ?? 0));
+    if (!gwStarted || hasNextPage || results.length < 2) return new Set<number>();
+    const points = results.map((r) => r.event_total ?? 0);
+    const minPoints = Math.min(...points);
+    if (minPoints === Math.max(...points)) return new Set<number>();
     return new Set(results.filter((r) => (r.event_total ?? 0) === minPoints).map((r) => r.entry));
-  }, [gwFinished, hasNextPage, results]);
+  }, [gwStarted, hasNextPage, results]);
 
   // Captain, team value and per-GW points come with each row from the server (standings-with-chips), so the
   // table needs no extra request per team.
