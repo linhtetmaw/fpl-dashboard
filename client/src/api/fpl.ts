@@ -62,6 +62,14 @@ export async function getLeagueStandings(leagueId: number, page = 1) {
 }
 
 /** League standings with chip badge per team for the given gameweek. */
+/** The current gameweek's top and bottom scorers across a whole league (server/index.js buildLeagueExtremes). */
+export async function getLeagueExtremes(leagueId: number, gameweek: number, size: number | null) {
+  return fetchApi<import('../types/fpl').LeagueExtremes>(`${API_BASE}/leagues-classic/${leagueId}/gw-extremes`, {
+    gw: gameweek,
+    ...(size ? { size } : {}),
+  });
+}
+
 export async function getLeagueStandingsWithChips(
   leagueId: number,
   page: number,

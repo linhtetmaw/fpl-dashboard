@@ -723,6 +723,83 @@ app.get('/api/leagues-classic/:id/standings-with-chips', async (req, res) => {
   }
 });
 
+/** Leagues up to this many standings pages (50 teams each) get a whole-league gameweek winner / last place. */
+const EXTREMES_MAX_PAGES = 100;
+/** Fetch this many standings pages at once (FPL requests are also capped globally, see fpl-api.js). */
+const EXTREMES_BATCH = 8;
+
+/**
+ * The gameweek's top and bottom scorers across a whole league, from FPL's official gameweek points (event_total) on
+ * every standings page. The league table loads 50 teams at a time by overall rank, so in a big league the gameweek
+ * winner is usually not on the first page. FPL's standings refresh during matches less often than live points, so
+ * this can trail a little while games are on; it's exact once the gameweek is over.
+ * Returns { gw, complete, teams, top, bottom } (top/bottom: [{ entry, entry_name, player_name, points }]); complete is
+ * false for leagues over EXTREMES_MAX_PAGES pages, which are skipped.
+ */
+async function buildLeagueExtremes(id, gw, sizeHint) {
+  const tooBig = { gw, complete: false, teams: null, top: [], bottom: [] };
+  if (sizeHint > EXTREMES_MAX_PAGES * 50) return tooBig;
+  const first = await fplGet(`/leagues-classic/${id}/standings/?page_standings=1`);
+  const rows = [...(first.standings?.results ?? [])];
+  let hasNext = first.standings?.has_next ?? false;
+  // Without a size, one look past the limit tells a too-big league apart before fetching any of its pages.
+  if (hasNext && !sizeHint) {
+    const beyond = await fplGet(`/leagues-classic/${id}/standings/?page_standings=${EXTREMES_MAX_PAGES + 1}`, {
+      ttl: 6 * 60 * 60 * 1000,
+    });
+    if ((beyond.standings?.results ?? []).length > 0) return tooBig;
+  }
+  let page = 2;
+  // The league's size (from the page) says how many pages there are, so none past the end are fetched; has_next
+  // still decides when to stop, so a wrong size can't cut the league short.
+  const lastPage = sizeHint ? Math.min(Math.ceil(sizeHint / 50), EXTREMES_MAX_PAGES) : EXTREMES_MAX_PAGES;
+  while (hasNext && page <= EXTREMES_MAX_PAGES) {
+    const upTo = page <= lastPage ? lastPage : EXTREMES_MAX_PAGES;
+    const pages = Array.from({ length: EXTREMES_BATCH }, (_, i) => page + i).filter((p) => p <= upTo);
+    const results = await Promise.all(
+      pages.map((p) => fplGet(`/leagues-classic/${id}/standings/?page_standings=${p}`, { ttl: 10 * 60 * 1000 }))
+    );
+    for (const r of results) rows.push(...(r.standings?.results ?? []));
+    hasNext = results.at(-1)?.standings?.has_next ?? false;
+    page += pages.length;
+  }
+  const pick = (r) => ({ entry: r.entry, entry_name: r.entry_name, player_name: r.player_name, points: r.event_total ?? 0 });
+  const points = rows.map((r) => r.event_total ?? 0);
+  const max = Math.max(...points);
+  const min = Math.min(...points);
+  return {
+    gw,
+    complete: true,
+    teams: rows.length,
+    // No winner before anyone has scored, no last place while everyone is level.
+    top: rows.length && max > 0 ? rows.filter((r) => (r.event_total ?? 0) === max).map(pick) : [],
+    bottom: rows.length > 1 && min < max ? rows.filter((r) => (r.event_total ?? 0) === min).map(pick) : [],
+  };
+}
+
+app.use('/api/leagues-classic/:id/gw-extremes', rateLimit({ limit: 150, name: 'league-extremes' }));
+app.get('/api/leagues-classic/:id/gw-extremes', async (req, res) => {
+  const id = req.params.id;
+  const gw = Number(req.query.gw);
+  // Optional: the league's number of teams (the page knows it), to fetch exactly its standings pages.
+  const size = /^\d{1,9}$/.test(String(req.query.size ?? '')) ? Number(req.query.size) : 0;
+  if (!/^\d{1,10}$/.test(id) || !Number.isInteger(gw) || gw < 1 || gw > 38) {
+    return res.status(400).json({ error: 'Invalid league id or gameweek' });
+  }
+  try {
+    // FPL's standings show the current gameweek's points, so only the current (or just finished) gameweek is known.
+    const bootstrap = await fplGet('/bootstrap-static/');
+    const current = (bootstrap.events ?? []).find((e) => e.is_current)?.id;
+    if (gw !== current) return res.json({ gw, complete: false, teams: null, top: [], bottom: [] });
+    const finished = (bootstrap.events ?? []).find((e) => e.id === gw)?.finished;
+    const ttl = finished ? 6 * 60 * 60 * 1000 : 10 * 60 * 1000;
+    res.set('Cache-Control', 'public, max-age=120');
+    res.json(await memo(`league-extremes:${id}:${gw}`, ttl, () => buildLeagueExtremes(id, gw, size)));
+  } catch (err) {
+    sendFplError(res, err, 'League extremes error');
+  }
+});
+
 const DEFAULT_LEAGUE_IDS = [699005, 590677, 699083, 57, 150, 167, 213, 232, 254];
 
 /** Search by League (name or ID) + Team name + Manager name (optional). Uses DEFAULT_LEAGUE_IDS when no league given. */

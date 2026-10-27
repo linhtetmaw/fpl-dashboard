@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 import type { BootstrapStatic } from '../types/fpl';
 import type { LeagueSortBy } from '../types/fpl';
-import { getLeagueStandingsWithChips, getLeagueStandings } from '../api/fpl';
+import { getLeagueStandingsWithChips, getLeagueStandings, getLeagueExtremes } from '../api/fpl';
 import { useFixtures } from '../hooks/useFplApi';
 
 interface LeagueTableProps {
@@ -101,24 +101,39 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
   const gwStarted = gwFinished || (gwFixtures ?? []).some((f) => f.started);
   // "To start" only matters while the gameweek is on (and needs the league table's live data).
   const showToStart = !gwFinished && results.some((r) => r.to_start != null);
-  /** Top gameweek score: live from the first kick-off (the leader so far), final once the gameweek is over. Only when
-   * every team in the league is loaded: the table loads 50 at a time by overall rank, so the gameweek's top scorer
-   * may not be on page 1. Nobody until someone has scored, so a 0–0 start doesn't make everyone a winner. */
+  // The table loads 50 teams at a time by overall rank, so in a big league the gameweek's top or bottom scorer is
+  // often not loaded: then the server finds them across the whole league (up to 5,000 teams).
+  const { data: extremes } = useQuery({
+    queryKey: ['fpl', 'league-extremes', leagueId, gameweek],
+    queryFn: () => getLeagueExtremes(leagueId, gameweek, rankCount ?? null),
+    enabled: gwStarted && Boolean(hasNextPage),
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: gwFinished ? false : 10 * 60 * 1000,
+    retry: false,
+  });
+  const leagueWide = hasNextPage && extremes?.complete ? extremes : null;
+
+  /** Top gameweek score: live from the first kick-off (the leader so far), final once the gameweek is over. From the
+   * loaded rows when the whole league is loaded, else from the server's whole-league scan. Nobody until someone has
+   * scored, so a 0–0 start doesn't make everyone a winner. */
   const gwWinnerEntries = useMemo(() => {
-    if (!gwStarted || hasNextPage || results.length === 0) return new Set<number>();
+    if (!gwStarted || results.length === 0) return new Set<number>();
+    if (hasNextPage) return new Set((leagueWide?.top ?? []).map((t) => t.entry));
     const maxPoints = Math.max(...results.map((r) => r.event_total ?? 0));
     if (maxPoints <= 0) return new Set<number>();
     return new Set(results.filter((r) => (r.event_total ?? 0) === maxPoints).map((r) => r.entry));
-  }, [gwStarted, hasNextPage, results]);
-  /** Lowest gameweek score, live like the winner, but only when every team in the league is loaded (big leagues
-   * load 50 at a time, so the last team on page 1 isn't necessarily the league's last), and not while all are level. */
+  }, [gwStarted, hasNextPage, leagueWide, results]);
+  /** Lowest gameweek score, the same way (and not while all are level). */
   const gwLastEntries = useMemo(() => {
-    if (!gwStarted || hasNextPage || results.length < 2) return new Set<number>();
+    if (!gwStarted || results.length < 2) return new Set<number>();
+    if (hasNextPage) return new Set((leagueWide?.bottom ?? []).map((t) => t.entry));
     const points = results.map((r) => r.event_total ?? 0);
     const minPoints = Math.min(...points);
     if (minPoints === Math.max(...points)) return new Set<number>();
     return new Set(results.filter((r) => (r.event_total ?? 0) === minPoints).map((r) => r.entry));
-  }, [gwStarted, hasNextPage, results]);
+  }, [gwStarted, hasNextPage, leagueWide, results]);
+  const names = (list: { entry_name: string; points: number }[]) =>
+    list.length > 2 ? `${list.length} teams (${list[0].points})` : list.map((t) => `${t.entry_name} (${t.points})`).join(', ');
 
   // Captain, team value and per-GW points come with each row from the server (standings-with-chips), so the
   // table needs no extra request per team.
@@ -279,6 +294,29 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
         <div className="p-4 text-slate-400 text-center text-xs">No standings data.</div>
       )}
 
+      {/* Big league: name the gameweek's winner and last place, who usually aren't among the loaded teams. */}
+      {!standingsLoading && leagueWide && (leagueWide.top.length > 0 || leagueWide.bottom.length > 0) && (
+        <div className="shrink-0 flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-fpl-border/60 px-3 py-2 text-[11px] text-slate-400">
+          <span className="eyebrow">GW{gameweek}{gwFinished ? '' : ' so far'}</span>
+          {leagueWide.top.length > 0 && (
+            <span>
+              <span className="mr-1 inline-flex items-center rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-semibold text-amber-300 ring-1 ring-inset ring-amber-400/40">
+                Winner
+              </span>
+              <span className="text-slate-200">{names(leagueWide.top)}</span>
+            </span>
+          )}
+          {leagueWide.bottom.length > 0 && (
+            <span>
+              <span className="mr-1" role="img" aria-label="Lowest score this gameweek">
+                💩
+              </span>
+              <span className="text-slate-200">{names(leagueWide.bottom)}</span>
+            </span>
+          )}
+        </div>
+      )}
+
       {!standingsLoading && rows.length > 0 && (
         <div className="league-table-scroll flex-1 min-h-0 overflow-y-auto overflow-x-auto pb-2 md:pb-4">
           <table className="w-full text-xs">
@@ -314,11 +352,9 @@ export default function LeagueTable({ leagueId, teamId, bootstrap, onTeamClick, 
               Showing top {results.length.toLocaleString()}
               {rankCount != null && rankCount > results.length ? ` of ${rankCount.toLocaleString()}` : ''} teams
             </span>
-            {hasNextPage && (
+            {hasNextPage && (sortBy === 'event_total' || sortBy === 'monthly') && (
               <span className="text-center">
-                {sortBy === 'event_total' || sortBy === 'monthly'
-                  ? 'Sorted among the teams loaded so far (by overall rank). Load all teams to find the real leaders.'
-                  : 'Winner and 💩 badges appear once every team is loaded.'}
+                Sorted among the teams loaded so far (by overall rank). Load all teams to see the full order.
               </span>
             )}
             {hasNextPage && (

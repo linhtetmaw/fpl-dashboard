@@ -311,6 +311,16 @@ export interface FplNewsResponse {
   players: FplNewsPlayer[];
 }
 
+/** A league's gameweek winner(s) and last place(s), from every standings page (FPL's official GW points). */
+export interface LeagueExtremes {
+  gw: number;
+  /** False when the league is too big to scan, or the gameweek isn't the current one. */
+  complete: boolean;
+  teams: number | null;
+  top: { entry: number; entry_name: string; player_name: string; points: number }[];
+  bottom: { entry: number; entry_name: string; player_name: string; points: number }[];
+}
+
 export type LeagueSortBy = 'event_total' | 'total' | 'monthly' | 'team_value';
 
 /** One saved Squad Planner pick (same shape as an FPL pick, plus the price the player was bought at). */

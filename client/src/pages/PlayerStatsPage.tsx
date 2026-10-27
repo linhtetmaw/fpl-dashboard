@@ -853,9 +853,36 @@ interface StatRow {
   player: PlayerSummary;
   positionType: number;
   cells: ReactNode[];
+  /** The number the top-3 card leads with (price change, net transfers, value), plus an optional line under it. */
+  headline: ReactNode;
+  caption?: ReactNode;
 }
 
-/** Compact ranked player table shared by every price tab. */
+/** Top-3 card for a price list, in the style of the Transfers podium. */
+function StatPodiumCard({ row, rank, direction }: { row: StatRow; rank: number; direction?: Direction }) {
+  const openPlayer = usePlayerCard();
+  const glow = direction ? DIRECTION_STYLES[direction].glow : 'from-fpl-brand/15';
+  return (
+    <div
+      {...playerCardProps(openPlayer, row.id, row.player.name)}
+      className="group relative flex cursor-pointer flex-col items-center overflow-hidden rounded-xl border border-fpl-border bg-fpl-raised/60 px-1.5 pb-3 pt-2.5 sm:px-2 text-center min-w-0 transition-colors hover:border-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand/60"
+      title={`${row.player.name} (${row.player.teamName})`}
+    >
+      <div className={`pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b ${glow} to-transparent`} />
+      <span className="absolute left-2 top-2 font-display text-xs font-bold text-slate-500">{rank}</span>
+      <PlayerPhoto url={row.player.photoUrl} name={row.player.name} className="relative h-14 w-14 sm:h-[72px] sm:w-[72px]" />
+      <p className="relative mt-2 w-full truncate text-xs sm:text-sm font-semibold text-white">{row.player.name}</p>
+      <p className="relative text-[10px] sm:text-[11px] text-slate-500">
+        {row.player.teamShort} · {row.player.position}
+        {row.player.price != null && <span className="hidden sm:inline"> · £{row.player.price.toFixed(1)}</span>}
+      </p>
+      <p className="relative mt-1.5 font-display text-sm sm:text-base font-bold tabular-nums">{row.headline}</p>
+      {row.caption && <p className="relative text-[10px] tabular-nums text-slate-500">{row.caption}</p>}
+    </div>
+  );
+}
+
+/** Ranked player list shared by every price tab: the top 3 as cards, the rest as a compact table. */
 function StatTable({
   title,
   direction,
@@ -870,6 +897,8 @@ function StatTable({
   emptyText: string;
 }) {
   const openPlayer = usePlayerCard();
+  const podium = rows.slice(0, PODIUM_N);
+  const rest = rows.slice(PODIUM_N);
   const th = 'px-2 sm:px-3 py-2.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500 whitespace-nowrap';
   return (
     <div className="min-w-0">
@@ -886,7 +915,14 @@ function StatTable({
           {emptyText}
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-fpl-border bg-fpl-raised/30">
+        <>
+        <div className="grid grid-cols-3 gap-2">
+          {podium.map((row, i) => (
+            <StatPodiumCard key={row.id} row={row} rank={i + 1} direction={direction} />
+          ))}
+        </div>
+        {rest.length > 0 && (
+        <div className="mt-3 overflow-hidden rounded-xl border border-fpl-border bg-fpl-raised/30">
           <table className="w-full text-left">
             <thead className="bg-fpl-raised/70">
               <tr className="border-b border-fpl-border">
@@ -900,9 +936,9 @@ function StatTable({
               </tr>
             </thead>
             <tbody>
-              {rows.map((row, i) => (
+              {rest.map((row, i) => (
                 <tr key={row.id} {...playerCardProps(openPlayer, row.id, row.player.name)} className="border-b border-fpl-border/50 last:border-0 hover:bg-fpl-raised/50 transition-colors cursor-pointer focus:outline-none focus-visible:bg-fpl-raised/60">
-                  <td className="px-2 sm:px-3 py-2 text-right font-display text-xs font-semibold text-slate-500 tabular-nums">{i + 1}</td>
+                  <td className="px-2 sm:px-3 py-2 text-right font-display text-xs font-semibold text-slate-500 tabular-nums">{i + PODIUM_N + 1}</td>
                   <td className="px-2 sm:px-3 py-2 max-w-0 w-full">
                     <div className="flex items-center gap-2.5 min-w-0">
                       <PlayerPhoto url={row.player.photoUrl} name={row.player.name} className="hidden sm:block h-8 w-8" />
@@ -932,6 +968,8 @@ function StatTable({
             </tbody>
           </table>
         </div>
+        )}
+        </>
       )}
     </div>
   );
@@ -976,6 +1014,8 @@ function PricesCard({
         <span className={deltaClass(e.cost_change_start ?? 0)}>{formatPriceDelta(e.cost_change_start ?? 0)}</span>,
         formatSigned(netTransfers(e)),
       ],
+      headline: <span className={deltaClass(e.cost_change_event ?? 0)}>{formatPriceDelta(e.cost_change_event ?? 0)}</span>,
+      caption: `now ${formatPrice(e)}${priceChangedAt[e.id] ? ` · ${timeAgo(priceChangedAt[e.id])}` : ''}`,
     });
     return {
       risers: changed.filter((e) => (e.cost_change_event ?? 0) > 0).sort(sortBy(1)).slice(0, TOP_N).map(toRow),
@@ -994,6 +1034,8 @@ function PricesCard({
           <span className={`font-semibold ${deltaClass(net)}`}>{formatSigned(net)}</span>,
           e.selected_by_percent != null ? `${e.selected_by_percent}%` : '—',
         ],
+        headline: <span className={deltaClass(net)}>{net > 0 ? '+' : '−'}{compact.format(Math.abs(net))}</span>,
+        caption: 'net transfers',
       };
     };
     const byNet = [...elements].sort((a, b) => netTransfers(b) - netTransfers(a));
@@ -1027,6 +1069,8 @@ function PricesCard({
           e.selected_by_percent != null ? `${e.selected_by_percent}%` : '—',
           <span className="font-display text-fpl-brand">{valueMetric === 'season' ? v.toFixed(1) : v.toFixed(2)}</span>,
         ],
+        headline: <span className="text-fpl-brand">{valueMetric === 'season' ? v.toFixed(1) : v.toFixed(2)}</span>,
+        caption: valueMetric === 'season' ? 'pts per £m' : 'form per £m',
       }));
   }, [elements, teamsById, valuePosition, valueMetric, minMinutes]);
 

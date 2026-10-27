@@ -17,13 +17,13 @@ const FILTERS: { id: StatusFilter; label: string }[] = [
   { id: 'u', label: 'Unavailable' },
 ];
 
-const STATUS: Record<string, { label: string; badge: string }> = {
-  i: { label: 'Injured', badge: 'bg-rose-500/15 text-rose-300 ring-rose-500/40' },
-  s: { label: 'Suspended', badge: 'bg-red-500/15 text-red-300 ring-red-500/40' },
-  d: { label: 'Doubtful', badge: 'bg-amber-400/15 text-amber-300 ring-amber-400/40' },
-  u: { label: 'Unavailable', badge: 'bg-slate-500/20 text-slate-300 ring-slate-500/40' },
-  n: { label: 'Not eligible', badge: 'bg-slate-500/20 text-slate-300 ring-slate-500/40' },
-  a: { label: 'Available', badge: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/40' },
+const STATUS: Record<string, { label: string; badge: string; glow: string }> = {
+  i: { label: 'Injured', badge: 'bg-rose-500/15 text-rose-300 ring-rose-500/40', glow: 'from-rose-500/15' },
+  s: { label: 'Suspended', badge: 'bg-red-500/15 text-red-300 ring-red-500/40', glow: 'from-red-500/15' },
+  d: { label: 'Doubtful', badge: 'bg-amber-400/15 text-amber-300 ring-amber-400/40', glow: 'from-amber-400/15' },
+  u: { label: 'Unavailable', badge: 'bg-slate-500/20 text-slate-300 ring-slate-500/40', glow: 'from-slate-500/15' },
+  n: { label: 'Not eligible', badge: 'bg-slate-500/20 text-slate-300 ring-slate-500/40', glow: 'from-slate-500/15' },
+  a: { label: 'Available', badge: 'bg-emerald-500/15 text-emerald-300 ring-emerald-500/40', glow: 'from-emerald-500/15' },
 };
 
 const POSITIONS: Record<number, string> = { 1: 'GKP', 2: 'DEF', 3: 'MID', 4: 'FWD' };
@@ -38,7 +38,7 @@ function chanceTone(chance: number): string {
 function PlayerPhoto({ url, name }: { url: string | null; name: string }) {
   const [failed, setFailed] = useState(false);
   return (
-    <div className="h-14 w-12 shrink-0 overflow-hidden rounded-lg bg-fpl-raised ring-1 ring-white/10">
+    <div className="relative h-16 w-16 sm:h-[72px] sm:w-[72px] shrink-0 overflow-hidden rounded-full bg-fpl-raised ring-1 ring-fpl-border">
       {url && !failed ? (
         <img
           src={url}
@@ -64,23 +64,21 @@ function NewsCard({ player, teamName, teamShort }: { player: FplNewsPlayer; team
   return (
     <li
       {...playerCardProps(openPlayer, player.id, player.web_name)}
-      className="card p-4 flex gap-3 cursor-pointer transition-colors hover:border-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand/60"
+      className="group relative flex cursor-pointer flex-col items-center overflow-hidden rounded-xl border border-fpl-border bg-fpl-raised/60 px-2.5 pb-3 pt-3 text-center min-w-0 transition-colors hover:border-slate-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand/60"
     >
+      {/* Status-coloured glow at the top, like the Transfers cards. */}
+      <div className={`pointer-events-none absolute inset-x-0 top-0 h-20 bg-gradient-to-b ${status.glow} to-transparent`} />
       <PlayerPhoto url={getPlayerImageUrl(player, teamName)} name={player.web_name} />
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span className="font-semibold text-white">{player.web_name}</span>
-          <span className="text-xs text-slate-500">
-            {teamShort} · {POSITIONS[player.element_type] ?? ''}
-          </span>
-          <span
-            className={`ml-auto inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${status.badge}`}
-          >
-            {status.label}
-          </span>
-        </div>
-        {player.news_en && <p className="mt-1 text-sm leading-relaxed text-slate-200">{player.news_en}</p>}
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+      <p className="relative mt-2 w-full truncate text-sm font-semibold text-white">{player.web_name}</p>
+      <p className="relative text-[11px] text-slate-500">
+        {teamShort} · {POSITIONS[player.element_type] ?? ''}
+      </p>
+      <span className={`relative mt-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1 ring-inset ${status.badge}`}>
+        {status.label}
+      </span>
+      <div className="relative flex w-full flex-1 flex-col items-center">
+        {player.news_en && <p className="mt-2 text-xs leading-relaxed text-slate-300">{player.news_en}</p>}
+        <div className="mt-auto flex flex-wrap items-center justify-center gap-x-2.5 gap-y-0.5 pt-2 text-[11px] text-slate-500">
           {chance != null && chance < 100 && (
             <span className={`font-semibold tabular-nums ${chanceTone(chance)}`}>
               {chance}%<span className="font-normal text-slate-500"> chance</span>
@@ -159,16 +157,16 @@ export default function FplNews() {
 
       <div>
         {isLoading ? (
-          <ul className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          <ul className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">
             {Array.from({ length: 6 }, (_, i) => (
-              <li key={i} className="card h-32 animate-pulse" />
+              <li key={i} className="h-56 rounded-xl border border-fpl-border bg-fpl-raised/40 animate-pulse" />
             ))}
           </ul>
         ) : players.length === 0 ? (
           <p className="card p-6 text-sm text-slate-400">No player news right now.</p>
         ) : (
           <>
-            <ul className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            <ul className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">
               {players.slice(0, shown).map((p) => (
                 <NewsCard key={p.id} player={p} teamName={teams.get(p.team)?.name ?? ''} teamShort={teamShort(p.team)} />
               ))}
