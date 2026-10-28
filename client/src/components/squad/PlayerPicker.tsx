@@ -10,7 +10,7 @@ const SORTS: { id: SortKey; label: string }[] = [
   { id: 'points', label: 'Total points' },
   { id: 'price', label: 'Price' },
   { id: 'form', label: 'Form' },
-  { id: 'selected', label: 'Selected %' },
+  { id: 'selected', label: 'Owned %' },
 ];
 const PAGE = 40;
 

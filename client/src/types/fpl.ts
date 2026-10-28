@@ -70,6 +70,12 @@ export interface FplElement {
   tackles?: number;
   clearances_blocks_interceptions?: number;
   recoveries?: number;
+  /** FPL's expected points for the next gameweek, e.g. "5.8". */
+  ep_next?: string | null;
+  /** Set-piece order at the club (1 = first choice); null when not on them. */
+  penalties_order?: number | null;
+  corners_and_indirect_freekicks_order?: number | null;
+  direct_freekicks_order?: number | null;
 }
 
 export interface FplTeam {
@@ -78,12 +84,28 @@ export interface FplTeam {
   short_name?: string;
 }
 
-/** One gameweek of history from element-summary (player's points in that GW). */
+/** One match of history from element-summary (a double gameweek has two with the same round). */
 export interface ElementHistoryEntry {
   round: number;
   total_points: number;
   opponent_team?: number;
   was_home?: boolean;
+  /** Price at that gameweek, in tenths (e.g. 65 = £6.5m). */
+  value?: number;
+  minutes?: number;
+  starts?: number;
+  goals_scored?: number;
+  assists?: number;
+  clean_sheets?: number;
+  goals_conceded?: number;
+  saves?: number;
+  bonus?: number;
+  defensive_contribution?: number;
+  yellow_cards?: number;
+  /** FPL sends expected stats as strings, e.g. "0.42". */
+  expected_goals?: string;
+  expected_assists?: string;
+  expected_goals_conceded?: string;
 }
 
 /** One upcoming fixture from element-summary (for a player's team). */

@@ -413,8 +413,13 @@ function PlayerTile({
           )}
         </>
       ) : null}
-      <p className="w-full truncate rounded-b-md bg-fpl-dark/80 px-1 py-px text-center text-[9px] font-medium tabular-nums text-slate-400 sm:text-[10px]" title="Selected by FPL managers">
-        Sel. {selected}
+      {/* Label over value, like BPS / DC: "Owned 45.5%" on one line is too wide for a phone-sized tile. */}
+      <p
+        className="w-full rounded-b-md bg-fpl-dark/80 px-1 pb-0.5 text-center leading-tight tabular-nums"
+        title="Share of FPL managers who own this player"
+      >
+        <span className="block text-[8px] font-medium uppercase text-slate-500">Owned</span>
+        <span className="block text-[10px] font-semibold text-slate-300">{selected}</span>
       </p>
     </button>
   );

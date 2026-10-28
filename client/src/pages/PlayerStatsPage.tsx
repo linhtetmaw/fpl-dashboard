@@ -521,7 +521,7 @@ type SortKey = 'points' | 'price' | 'selected' | 'form' | 'rank';
 const SORT_OPTIONS: { key: SortKey; label: string }[] = [
   { key: 'points', label: 'Points' },
   { key: 'price', label: 'Price' },
-  { key: 'selected', label: 'Sel %' },
+  { key: 'selected', label: 'Owned %' },
   { key: 'form', label: 'Form' },
   { key: 'rank', label: 'Rank' },
 ];
@@ -729,7 +729,7 @@ function PlayerStatsTable({
                 </div>
                 <div className="mt-1.5 ml-8 flex gap-4 text-[11px] text-slate-500 tabular-nums">
                   <span><span className="text-slate-300">{price(e.now_cost)}</span></span>
-                  <span>Sel <span className="text-slate-300">{pct(e.selected_by_percent)}</span></span>
+                  <span>Owned <span className="text-slate-300">{pct(e.selected_by_percent)}</span></span>
                   <span>Form <span className="text-slate-300">{e.form ?? '—'}</span></span>
                   <span>Rank <span className="text-slate-300">{rank(e.selected_rank)}</span></span>
                 </div>
@@ -1122,7 +1122,7 @@ function PricesCard({
               columns={[
                 { label: 'Price' },
                 { label: 'Net transfers', highlight: true },
-                { label: 'Sel %', hideOnMobile: true },
+                { label: 'Owned %', hideOnMobile: true },
               ]}
               rows={dir === 'in' ? likelyRise : likelyFall}
               emptyText="No transfer data for this gameweek yet"
@@ -1158,7 +1158,7 @@ function PricesCard({
             columns={[
               { label: 'Price' },
               { label: valueMetric === 'season' ? 'Points' : 'Form', hideOnMobile: true },
-              { label: 'Sel %', hideOnMobile: true },
+              { label: 'Owned %', hideOnMobile: true },
               { label: valueMetric === 'season' ? 'Pts / £m' : 'Form / £m', highlight: true },
             ]}
             rows={valueRows}
