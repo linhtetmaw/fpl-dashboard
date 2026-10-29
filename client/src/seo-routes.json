@@ -50,5 +50,9 @@
   "/team-of-the-week": {
     "title": "FPL Team of the Week & Player of the Week, Captain Picks | FPL House",
     "description": "The highest-scoring Fantasy Premier League team and player of every gameweek, updated live, plus FPL House captain, differential and popular picks for the next deadline."
+  },
+  "/articles/how-fpl-price-changes-work": {
+    "title": "How FPL Price Changes Work: Rises, Falls & Selling Price | FPL House",
+    "description": "How Fantasy Premier League player prices rise and fall, what time price changes happen (UK and Myanmar time), which players are closest to changing now, and how the 50% selling price rule works."
   }
 }

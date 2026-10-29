@@ -1,4 +1,5 @@
 import type { ComponentType } from 'react';
+import HowPriceChangesWork from './HowPriceChangesWork';
 import HowToPlayFpl from './HowToPlayFpl';
 
 export interface Article {
@@ -15,6 +16,16 @@ export interface Article {
 
 /** Newest first. Each article also needs an entry in seo-routes.json (title, description, sitemap). */
 export const ARTICLES: Article[] = [
+  {
+    slug: 'how-fpl-price-changes-work',
+    title: 'How FPL price changes work: rises, falls and your selling price',
+    summary:
+      'Why Fantasy Premier League prices rise and fall, when the changes happen, who is closest to changing right now, and the 50% rule that decides what you get when you sell.',
+    category: 'Guide',
+    published: '2026-10-29',
+    readMinutes: 6,
+    Body: HowPriceChangesWork,
+  },
   {
     slug: 'how-to-play-fpl',
     title: 'How to play Fantasy Premier League: points, chips and transfers explained',
