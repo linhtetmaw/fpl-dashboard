@@ -327,11 +327,14 @@ function PlayerTile({
   teamName,
   faded = false,
   bonusProjected = false,
+  star = false,
 }: {
   p: LineupPlayer;
   teamName: string;
   faded?: boolean;
   bonusProjected?: boolean;
+  /** Player of the Week (Team of the Week pitch). */
+  star?: boolean;
 }) {
   const openPlayer = usePlayerCard();
   const e = p.element;
@@ -349,7 +352,7 @@ function PlayerTile({
       title={`View ${e.web_name}`}
       className={`flex w-[58px] sm:w-[80px] shrink-0 flex-col items-center overflow-hidden rounded-lg text-left transition-transform hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-fpl-brand ${
         faded ? 'opacity-60' : ''
-      }`}
+      } ${star ? 'ring-2 ring-amber-300' : ''}`}
     >
       <div className="relative h-[52px] w-11 shrink-0 overflow-hidden rounded-t-md sm:h-[70px] sm:w-[60px]">
         {img && !imgFailed ? (
@@ -359,7 +362,13 @@ function PlayerTile({
             {e.web_name.slice(0, 2).toUpperCase()}
           </div>
         )}
-        {availability && <AvailabilityBadge availability={availability} className="absolute left-0.5 top-0.5" />}
+        {star ? (
+          <span className="absolute left-0.5 top-0.5 text-xs leading-none" title="Player of the Week">
+            ⭐
+          </span>
+        ) : (
+          availability && <AvailabilityBadge availability={availability} className="absolute left-0.5 top-0.5" />
+        )}
         <GoalAssistBadges
           goals={p.goals}
           assists={p.assists}
@@ -430,18 +439,28 @@ export default function LineupPitch({
   lineup,
   team,
   bonusProjected = false,
+  title: titleOverride,
+  teamNameOf,
+  starId,
 }: {
   lineup: Lineup;
   team: FplTeam | undefined;
   /** Bonus isn't confirmed by FPL yet (marked * on the tiles). */
   bonusProjected?: boolean;
+  /** Replaces "Starting XI" etc. (e.g. "Team of the Week"). */
+  title?: string;
+  /** Club name per player, for line-ups mixing clubs (player photos are looked up by club). */
+  teamNameOf?: (e: FplElement) => string;
+  /** Player shown with a star (Player of the Week). */
+  starId?: number;
 }) {
   const teamName = team?.name ?? '';
+  const nameFor = (p: LineupPlayer) => teamNameOf?.(p.element) ?? teamName;
   // Real shape when positions are known (e.g. 4-2-3-1 as four lines), otherwise by FPL position.
   const rows = lineup.rows ?? [4, 3, 2, 1].map((type) => lineup.xi.filter((p) => p.element.element_type === type));
   const total = lineup.kind === 'started' ? lineup.xi.concat(lineup.bench).reduce((n, p) => n + (p.points ?? 0), 0) : null;
   const formation = lineup.formation || rows.slice(0, 3).reverse().map((r) => r.length).join('-');
-  const title = { predicted: 'Predicted XI', confirmed: 'Confirmed XI', started: 'Starting XI' }[lineup.kind];
+  const title = titleOverride ?? { predicted: 'Predicted XI', confirmed: 'Confirmed XI', started: 'Starting XI' }[lineup.kind];
   return (
     <div className="overflow-hidden rounded-xl border border-fpl-border">
       <div className="flex items-center justify-between gap-2 bg-fpl-raised/60 px-3 py-1.5 text-xs">
@@ -467,7 +486,13 @@ export default function LineupPitch({
         {rows.map((row, i) => (
           <div key={i} className="relative flex justify-center gap-1 sm:gap-3">
             {row.map((p) => (
-              <PlayerTile key={p.element.id} p={p} teamName={teamName} bonusProjected={bonusProjected} />
+              <PlayerTile
+                key={p.element.id}
+                p={p}
+                teamName={nameFor(p)}
+                bonusProjected={bonusProjected}
+                star={p.element.id === starId}
+              />
             ))}
           </div>
         ))}
@@ -477,7 +502,7 @@ export default function LineupPitch({
           <p className="eyebrow mb-2 text-center">{{ predicted: 'Likely to miss out', confirmed: 'Bench', started: 'Subs used' }[lineup.kind]}</p>
           <div className="flex flex-wrap justify-center gap-1 sm:gap-3">
             {lineup.bench.map((p) => (
-              <PlayerTile key={p.element.id} p={p} teamName={teamName} faded={lineup.kind === 'predicted'} bonusProjected={bonusProjected} />
+              <PlayerTile key={p.element.id} p={p} teamName={nameFor(p)} faded={lineup.kind === 'predicted'} bonusProjected={bonusProjected} />
             ))}
           </div>
         </div>

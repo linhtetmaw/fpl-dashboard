@@ -15,9 +15,18 @@ const NAV_ITEMS = [
   { to: '/player-stats', label: 'Player Stats' },
   { to: '/player-news', label: 'Player News' },
   { to: '/fixtures', label: 'Fixtures' },
-  { to: '/clubs', label: 'Clubs' },
+  { to: '/team-of-the-week', label: 'Team of the Week' },
   { to: '/squad-planner', label: 'Squad Planner' },
   { to: '/opinions', label: 'Opinions' },
+  { to: '/clubs', label: 'Clubs' },
+  { to: '/articles', label: 'News & Articles' },
+];
+
+const FOOTER_LINKS = [
+  { to: '/articles', label: 'News & Articles' },
+  { to: '/about', label: 'About' },
+  { to: '/contact', label: 'Contact' },
+  { to: '/privacy', label: 'Privacy Policy' },
 ];
 
 function useNextDeadline(): { date: Date; name: string } | null {
@@ -215,9 +224,18 @@ export default function AppLayout() {
             <LogoMark className="h-5 w-5" />
             <span>© {new Date().getFullYear()} FPL House · Developed by Reindeers</span>
           </div>
-          <p className="text-center sm:text-right">
-            Data from the official Fantasy Premier League API. Not affiliated with the Premier League.
-          </p>
+          <div className="flex flex-col items-center gap-2 sm:items-end">
+            <nav className="flex flex-wrap justify-center gap-x-4 gap-y-1" aria-label="Footer">
+              {FOOTER_LINKS.map((item) => (
+                <Link key={item.to} to={item.to} className="hover:text-slate-200">
+                  {item.label}
+                </Link>
+              ))}
+            </nav>
+            <p className="text-center sm:text-right">
+              Data from the official Fantasy Premier League API. Not affiliated with the Premier League.
+            </p>
+          </div>
         </div>
       </footer>
     </div>

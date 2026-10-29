@@ -13,7 +13,7 @@ import NotFoundPage from './NotFoundPage';
 const POS: Record<number, string> = { 1: 'GKP', 2: 'DEF', 3: 'MID', 4: 'FWD' };
 
 /** Official FPL fixture difficulty colours. */
-const FDR: Record<number, string> = {
+export const FDR: Record<number, string> = {
   1: 'bg-[#375523] text-fpl-snow',
   2: 'bg-[#01fc7a] text-fpl-ink',
   3: 'bg-[#e7e7e7] text-fpl-ink',
@@ -87,9 +87,6 @@ export default function ClubPage() {
         <Badge teamId={team.id} className="h-16 w-16 shrink-0 sm:h-20 sm:w-20" />
         <div className="min-w-0">
           <h1 className="font-display text-2xl font-bold tracking-tight text-white sm:text-3xl">{info.name} FPL guide</h1>
-          <p lang="my" className="font-myanmar mt-1 text-base leading-8 text-slate-300">
-            {info.my} — ပွဲစဉ်များ၊ ဒဏ်ရာသတင်းနှင့် FPL ကစားသမားများ
-          </p>
           <p className="mt-1 text-sm text-slate-400">
             Fixtures in Myanmar time, injury news and Fantasy Premier League prices for every {info.name} player.
             {info.aka.length > 0 && <> Also known as {info.aka.join(', ')}.</>}
@@ -176,10 +173,7 @@ export default function ClubPage() {
       </div>
 
       <section className="card mt-5 p-4 sm:p-5">
-        <h2 className="section-title mb-1">Injury and suspension news</h2>
-        <p lang="my" className="font-myanmar mb-3 text-sm leading-7 text-slate-500">
-          {info.my} ကစားသမား ဒဏ်ရာ သတင်း
-        </p>
+        <h2 className="section-title mb-3">Injury and suspension news</h2>
         {flagged.length === 0 ? (
           <p className="text-sm text-slate-500">No injury or suspension news for {info.name} right now.</p>
         ) : (
@@ -267,12 +261,7 @@ export function OtherClubs({ teams, current }: { teams: FplTeam[]; current?: Fpl
               <li key={t.id}>
                 <Link to={clubPath(t)} className="flex items-center gap-2 rounded-lg bg-fpl-raised/60 px-3 py-2 transition-colors hover:bg-fpl-raised">
                   <Badge teamId={t.id} className="h-6 w-6 shrink-0" />
-                  <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-white">{c.name}</span>
-                    <span lang="my" className="font-myanmar block truncate text-xs leading-6 text-slate-500">
-                      {c.my}
-                    </span>
-                  </span>
+                  <span className="min-w-0 truncate text-sm font-medium text-white">{c.name}</span>
                 </Link>
               </li>
             );

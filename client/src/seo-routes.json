@@ -17,7 +17,7 @@
   },
   "/clubs": {
     "title": "Premier League Clubs – FPL Fixtures, Injuries & Players | FPL House",
-    "description": "All 20 Premier League clubs: fixtures in Myanmar time, injury news, and FPL player prices, form and ownership for each club. ပရီးမီးယားလိဂ် အသင်းများ။"
+    "description": "All 20 Premier League clubs: fixtures in Myanmar time, injury news, and FPL player prices, form and ownership for each club."
   },
   "/squad-planner": {
     "title": "FPL Squad Planner – Build & Track a £100m Team | FPL House",
@@ -26,5 +26,29 @@
   "/opinions": {
     "title": "FPL Videos & Opinions | FPL House",
     "description": "Fantasy Premier League tips, previews and opinions from the FPL House video series."
+  },
+  "/articles": {
+    "title": "FPL News & Articles – Guides, Rules and Tips | FPL House",
+    "description": "Fantasy Premier League guides and articles: how to play FPL, the points system, chips, transfers and tips for every gameweek."
+  },
+  "/articles/how-to-play-fpl": {
+    "title": "How to Play Fantasy Premier League (2026/27): Points, Chips & Transfers | FPL House",
+    "description": "Beginner's guide to FPL 2026/27: building a £100m squad, captains, transfers, the full points system including defensive contributions and bonus points, and when to use Wildcard, Free Hit, Bench Boost and Triple Captain."
+  },
+  "/about": {
+    "title": "About FPL House",
+    "description": "FPL House is a free Fantasy Premier League companion site: live points, live mini-league tables, player stats, fixtures in Myanmar time and FPL guides."
+  },
+  "/contact": {
+    "title": "Contact FPL House",
+    "description": "Get in touch with FPL House for bug reports, feature ideas, FPL questions or advertising enquiries."
+  },
+  "/privacy": {
+    "title": "Privacy Policy | FPL House",
+    "description": "How FPL House collects and uses information, including cookies, Google Analytics, Google AdSense advertising and Telegram login."
+  },
+  "/team-of-the-week": {
+    "title": "FPL Team of the Week & Player of the Week, Captain Picks | FPL House",
+    "description": "The highest-scoring Fantasy Premier League team and player of every gameweek, updated live, plus FPL House captain, differential and popular picks for the next deadline."
   }
 }

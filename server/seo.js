@@ -81,7 +81,7 @@ function clubMeta(slug) {
   if (!club || (currentClubSlugs && !currentClubSlugs.has(slug))) return null;
   return {
     title: `${club.name} FPL: Fixtures, Injuries & Player Prices | FPL House`,
-    description: `${club.name} (${club.my}) fixtures and results in Myanmar time, injury news, and Fantasy Premier League player prices, points, form and ownership.`,
+    description: `${club.name} fixtures and results in Myanmar time, injury news, and Fantasy Premier League player prices, points, form and ownership.`,
   };
 }
 const NOT_FOUND = { title: 'Page not found | FPL House', description: 'This page does not exist on FPL House.' };

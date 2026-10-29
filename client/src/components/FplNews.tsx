@@ -35,7 +35,7 @@ function chanceTone(chance: number): string {
   return 'text-yellow-200';
 }
 
-function PlayerPhoto({ url, name }: { url: string | null; name: string }) {
+export function PlayerPhoto({ url, name }: { url: string | null; name: string }) {
   const [failed, setFailed] = useState(false);
   return (
     <div className="relative h-16 w-16 sm:h-[72px] sm:w-[72px] shrink-0 overflow-hidden rounded-full bg-fpl-raised ring-1 ring-fpl-border">
@@ -112,44 +112,67 @@ export default function FplNews() {
   });
   const { data: bootstrap } = useBootstrapStatic();
   const [filter, setFilter] = useState<StatusFilter>('all');
+  /** FPL team id; 0 = all teams. */
+  const [team, setTeam] = useState(0);
   const [shown, setShown] = useState(PAGE_SIZE);
 
   const teams = useMemo(() => new Map((bootstrap?.teams ?? []).map((t) => [t.id, t])), [bootstrap?.teams]);
   const teamShort = (id: number) => teams.get(id)?.short_name ?? '';
 
+  const sortedTeams = useMemo(() => [...(bootstrap?.teams ?? [])].sort((a, b) => a.name.localeCompare(b.name)), [bootstrap?.teams]);
+  // Status counts follow the team filter, so "Injured 3" means three injured players at that club.
+  const teamPlayers = useMemo(() => (data?.players ?? []).filter((p) => team === 0 || p.team === team), [data?.players, team]);
   const players = useMemo(
-    () => (data?.players ?? []).filter((p) => filter === 'all' || p.status === filter || (filter === 'u' && p.status === 'n')),
-    [data?.players, filter]
+    () => teamPlayers.filter((p) => filter === 'all' || p.status === filter || (filter === 'u' && p.status === 'n')),
+    [teamPlayers, filter]
   );
   const counts = useMemo(() => {
-    const c: Record<string, number> = { all: data?.players.length ?? 0 };
-    for (const p of data?.players ?? []) {
+    const c: Record<string, number> = { all: teamPlayers.length };
+    for (const p of teamPlayers) {
       const key = p.status === 'n' ? 'u' : p.status;
       c[key] = (c[key] ?? 0) + 1;
     }
     return c;
-  }, [data?.players]);
+  }, [teamPlayers]);
 
   return (
     <section className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <h3 className="section-title">Latest updates</h3>
-        <div className="segmented" role="group" aria-label="Filter by status">
-          {FILTERS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              data-active={filter === f.id}
-              aria-pressed={filter === f.id}
-              onClick={() => {
-                setFilter(f.id);
-                setShown(PAGE_SIZE);
-              }}
-            >
-              {f.label}
-              <span className="ml-1 tabular-nums opacity-60">{counts[f.id] ?? 0}</span>
-            </button>
-          ))}
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <select
+            value={team}
+            onChange={(e) => {
+              setTeam(Number(e.target.value));
+              setShown(PAGE_SIZE);
+            }}
+            className="input select-arrow-white !py-2 sm:!w-48"
+            aria-label="Filter by team"
+          >
+            <option value={0}>All teams</option>
+            {sortedTeams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </select>
+          <div className="segmented" role="group" aria-label="Filter by status">
+            {FILTERS.map((f) => (
+              <button
+                key={f.id}
+                type="button"
+                data-active={filter === f.id}
+                aria-pressed={filter === f.id}
+                onClick={() => {
+                  setFilter(f.id);
+                  setShown(PAGE_SIZE);
+                }}
+              >
+                {f.label}
+                <span className="ml-1 tabular-nums opacity-60">{counts[f.id] ?? 0}</span>
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -163,7 +186,9 @@ export default function FplNews() {
             ))}
           </ul>
         ) : players.length === 0 ? (
-          <p className="card p-6 text-sm text-slate-400">No player news right now.</p>
+          <p className="card p-6 text-sm text-slate-400">
+            {team ? `No ${filter === 'all' ? '' : 'matching '}news for ${teams.get(team)?.name ?? 'this team'} right now.` : 'No player news right now.'}
+          </p>
         ) : (
           <>
             <ul className="grid grid-cols-2 gap-2 sm:gap-3 md:grid-cols-3 lg:grid-cols-4">

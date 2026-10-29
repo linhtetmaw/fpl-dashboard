@@ -11,6 +11,10 @@ import NotFoundPage from './pages/NotFoundPage';
 import ClubsPage from './pages/ClubsPage';
 import ClubPage from './pages/ClubPage';
 import OpinionsPage from './pages/OpinionsPage';
+import ArticlesPage from './pages/ArticlesPage';
+import TeamOfTheWeekPage from './pages/TeamOfTheWeekPage';
+import ArticlePage from './pages/ArticlePage';
+import { AboutPage, ContactPage, PrivacyPage } from './pages/InfoPages';
 
 function App() {
   const location = useLocation();
@@ -31,10 +35,16 @@ function App() {
         <Route path="player-stats" element={<PlayerStatsPage />} />
         <Route path="player-news" element={<PlayerNewsPage />} />
         <Route path="fixtures" element={<FixturesPage />} />
+        <Route path="team-of-the-week" element={<TeamOfTheWeekPage />} />
         <Route path="clubs" element={<ClubsPage />} />
         <Route path="clubs/:slug" element={<ClubPage />} />
         <Route path="squad-planner" element={<SquadPlannerPage />} />
         <Route path="opinions" element={<OpinionsPage />} />
+        <Route path="articles" element={<ArticlesPage />} />
+        <Route path="articles/:slug" element={<ArticlePage />} />
+        <Route path="about" element={<AboutPage />} />
+        <Route path="contact" element={<ContactPage />} />
+        <Route path="privacy" element={<PrivacyPage />} />
         <Route path="*" element={<NotFoundPage />} />
       </Route>
     </Routes>

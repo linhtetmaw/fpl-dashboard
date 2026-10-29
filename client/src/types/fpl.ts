@@ -72,6 +72,8 @@ export interface FplElement {
   recoveries?: number;
   /** FPL's expected points for the next gameweek, e.g. "5.8". */
   ep_next?: string | null;
+  /** Average points per match this season, e.g. "4.6". */
+  points_per_game?: string;
   /** Set-piece order at the club (1 = first choice); null when not on them. */
   penalties_order?: number | null;
   corners_and_indirect_freekicks_order?: number | null;
