@@ -89,7 +89,7 @@ function DeadlineChip({ className = '' }: { className?: string }) {
   const countdown = useCountdown(deadline?.date ?? null);
   return (
     <div
-      className={`inline-flex items-center gap-2 rounded-lg border border-fpl-border bg-fpl-raised/70 px-3 py-1.5 text-xs sm:text-sm ${className}`}
+      className={`inline-flex items-center gap-2 whitespace-nowrap rounded-lg border border-fpl-border bg-fpl-raised/70 px-3 py-1.5 text-xs sm:text-sm ${className}`}
       title={deadline ? `${deadline.name} deadline: ${deadline.date.toLocaleString()}` : undefined}
     >
       <ClockIcon className="h-4 w-4 text-fpl-brand shrink-0" />
@@ -118,6 +118,30 @@ export default function AppLayout() {
     if (p.startsWith('/clubs/')) return;
     document.title = PAGE_TITLES[p]?.title ?? 'Page not found | FPL House';
   }, [location.pathname]);
+  // Tabs scroll sideways when they don't fit: bring the current one into view (e.g. after opening a link to it).
+  useEffect(() => {
+    for (const nav of document.querySelectorAll<HTMLElement>('nav[aria-label="Main"]')) {
+      const active = nav.querySelector<HTMLElement>('a[aria-current="page"]');
+      if (!active) continue;
+      const left = active.offsetLeft - nav.offsetLeft;
+      if (left < nav.scrollLeft || left + active.offsetWidth > nav.scrollLeft + nav.clientWidth) {
+        nav.scrollTo({ left: left - 16 });
+      }
+    }
+  }, [location.pathname]);
+  // A mouse wheel only scrolls up and down: over the desktop tabs, turn it into sideways scrolling.
+  const desktopNavRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const nav = desktopNavRef.current;
+    if (!nav) return undefined;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || nav.scrollWidth <= nav.clientWidth) return;
+      e.preventDefault();
+      nav.scrollLeft += e.deltaY;
+    };
+    nav.addEventListener('wheel', onWheel, { passive: false });
+    return () => nav.removeEventListener('wheel', onWheel);
+  }, []);
   const [, setSearchParams] = useSearchParams();
   const hasTeam = hasStoredTeam();
 
@@ -131,21 +155,26 @@ export default function AppLayout() {
       <header className="sticky top-0 z-30 border-b border-fpl-border bg-fpl-dark/85 backdrop-blur supports-[backdrop-filter]:bg-fpl-dark/70">
         <div className="max-w-6xl mx-auto px-4">
           <div className="flex items-center justify-between gap-4 h-16">
-            <div className="flex items-center gap-8 min-w-0">
+            <div className="flex flex-1 items-center gap-8 min-w-0">
               <Link to="/" className="flex items-center gap-2.5 shrink-0" aria-label="FPL House home">
                 <LogoMark className="h-8 w-8" />
                 <span className="font-display text-xl tracking-[-0.04em] text-white">
                   <span className="font-bold">FPL</span><span className="font-normal text-fpl-brand">house</span>
                 </span>
               </Link>
-              <nav className="hidden md:flex items-center gap-1 h-16" aria-label="Main">
+              {/* Scrolls sideways when the tabs don't fit beside the deadline and buttons, like the mobile tabs. */}
+              <nav
+                ref={desktopNavRef}
+                className="hidden md:flex min-w-0 items-center gap-1 h-16 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,transparent,black_12px,black_calc(100%-24px),transparent)]"
+                aria-label="Main"
+              >
                 {NAV_ITEMS.map((item) => (
                   <NavLink
                     key={item.to}
                     to={item.to}
                     end={item.end}
                     className={({ isActive }) =>
-                      `relative flex items-center h-full px-3 text-sm font-medium transition-colors ${
+                      `relative flex shrink-0 items-center h-full whitespace-nowrap px-3 text-sm font-medium transition-colors ${
                         isActive
                           ? 'text-white after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-fpl-brand'
                           : 'text-slate-400 hover:text-slate-100'
@@ -157,7 +186,7 @@ export default function AppLayout() {
                 ))}
               </nav>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex shrink-0 items-center gap-2">
               <DeadlineChip className="hidden lg:inline-flex" />
               <InstallButton />
               <button
