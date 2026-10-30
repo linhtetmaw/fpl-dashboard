@@ -216,11 +216,6 @@ export default function TeamOfTheWeekPage() {
             ))}
           </div>
         )}
-        <p className="text-xs leading-5 text-slate-500">
-          Picks are chosen automatically. Each player’s projection combines his recent form and season average, adjusted
-          for fixture difficulty and home advantage (both matches count in a double gameweek). Only players expected to be fit are included. A differential is owned by under 10% of
-          managers; a popular pick by 20% or more.
-        </p>
       </section>
       <section className="mx-auto mt-8 max-w-2xl space-y-3">
         <div className="flex items-center justify-between gap-3">
