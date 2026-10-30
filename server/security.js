@@ -46,6 +46,32 @@ export function clientIp(req) {
 }
 
 /**
+ * Per-IP allowance for expensive work, checked by hand where only some requests cost anything (e.g. a league table
+ * that isn't cached yet). take(req) counts one use and returns false once the IP has used `limit` this window.
+ */
+export function rateBudget({ limit, windowMs = 60 * 1000, name }) {
+  const hits = new Map();
+  setInterval(() => {
+    const now = Date.now();
+    for (const [ip, w] of hits) if (w.reset <= now) hits.delete(ip);
+  }, windowMs).unref();
+  return {
+    take(req) {
+      const now = Date.now();
+      const ip = clientIp(req);
+      let w = hits.get(ip);
+      if (!w || w.reset <= now) {
+        w = { count: 0, reset: now + windowMs };
+        hits.set(ip, w);
+      }
+      w.count += 1;
+      if (w.count === limit + 1) console.warn(`Rate limit (${name}) hit by ${ip}`);
+      return w.count <= limit;
+    },
+  };
+}
+
+/**
  * Fixed-window per-IP rate limiter kept in memory (fine for a single instance).
  * Returns Express middleware allowing `limit` requests per `windowMs` per IP for the routes it's mounted on.
  */

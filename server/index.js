@@ -15,8 +15,8 @@ import { startSquads, registerSquadRoutes } from './squads.js';
 import { registerAuthRoutes } from './auth.js';
 import { registerLineupRoutes } from './lineups.js';
 import { registerTransferSuggestionRoutes } from './transfer-suggestions.js';
-import { fplGet, memo, cacheKey, cacheStats, FplError } from './fpl-api.js';
-import { redirects, securityHeaders, rateLimit, clientIp } from './security.js';
+import { fplGet, memo, memoFresh, cacheKey, cacheStats, FplError } from './fpl-api.js';
+import { redirects, securityHeaders, rateLimit, rateBudget, clientIp } from './security.js';
 
 // Log instead of silently dying on a stray async error.
 process.on('unhandledRejection', (err) => console.error('Unhandled rejection:', err));
@@ -219,6 +219,38 @@ app.get('/api/photo/:code', async (req, res) => {
   }
 });
 
+/** Hosts we fetch third-party images from. Image URLs found in TheSportsDB's data must be on one of these. */
+const IMAGE_HOSTS = [/(^|\.)thesportsdb\.com$/i, /^resources\.premierleague\.com$/i];
+/** Raster images only: SVG can carry scripts, and anything we send is served from our own domain. */
+const IMAGE_TYPES = /^image\/(png|jpe?g|webp|gif)\b/i;
+
+/**
+ * Fetch an image for the photo/badge proxies. Only https URLs on IMAGE_HOSTS (checked again on every redirect), so
+ * bad data from a third party can't make the server fetch other addresses; only raster image types are returned.
+ * `trusted` skips the host check for URLs we configured ourselves (env overrides). Returns { buf, contentType } or null.
+ */
+async function fetchImage(url, { userAgent, trusted = false } = {}) {
+  let target = url;
+  for (let hop = 0; hop < 4; hop++) {
+    let u;
+    try {
+      u = new URL(target);
+    } catch {
+      return null;
+    }
+    if (u.protocol !== 'https:' || (!(trusted && hop === 0) && !IMAGE_HOSTS.some((re) => re.test(u.hostname)))) return null;
+    const res = await fetch(u, { headers: { 'User-Agent': userAgent }, redirect: 'manual', signal: AbortSignal.timeout(15000) });
+    if (res.status >= 300 && res.status < 400 && res.headers.get('location')) {
+      target = new URL(res.headers.get('location'), u).toString();
+      continue;
+    }
+    const contentType = res.headers.get('content-type') ?? '';
+    if (!res.ok || !IMAGE_TYPES.test(contentType)) return null;
+    return { buf: Buffer.from(await res.arrayBuffer()), contentType: contentType.split(';')[0] };
+  }
+  return null;
+}
+
 /** Normalize team name for TheSportsDB match (lowercase, trim). */
 function normForBadgeMatch(name) {
   if (!name || typeof name !== 'string') return '';
@@ -274,15 +306,13 @@ app.get('/api/badge/:teamId', async (req, res) => {
     if (!badgeUrl) {
       return res.status(404).send();
     }
-    const imgRes = await fetch(badgeUrl, { headers: { 'User-Agent': ua } });
-    if (!imgRes.ok) {
+    const img = await fetchImage(badgeUrl, { userAgent: ua });
+    if (!img) {
       return res.status(502).send();
     }
     res.set('Cache-Control', 'public, max-age=3600, must-revalidate');
-    const contentType = imgRes.headers.get('content-type') || 'image/png';
-    res.set('Content-Type', contentType);
-    const buf = await imgRes.arrayBuffer();
-    res.send(Buffer.from(buf));
+    res.set('Content-Type', img.contentType);
+    res.send(img.buf);
   } catch (err) {
     console.error('Badge proxy error:', err.message);
     res.status(502).send();
@@ -335,14 +365,14 @@ app.get('/api/player-photo', async (req, res) => {
   try {
     if (isGabrielMagalhaes) {
       if (GABRIEL_MAGALHAES_OVERRIDE_URL) {
-        const imgRes = await fetch(GABRIEL_MAGALHAES_OVERRIDE_URL, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FPLDashboard/1.0)' },
+        const img = await fetchImage(GABRIEL_MAGALHAES_OVERRIDE_URL, {
+          userAgent: 'Mozilla/5.0 (compatible; FPLDashboard/1.0)',
+          trusted: true,
         });
-        if (imgRes.ok) {
-          const contentType = imgRes.headers.get('content-type') || 'image/png';
+        if (img) {
           res.set('Cache-Control', 'public, max-age=86400, must-revalidate');
-          res.set('Content-Type', contentType);
-          res.send(Buffer.from(await imgRes.arrayBuffer()));
+          res.set('Content-Type', img.contentType);
+          res.send(img.buf);
           return;
         }
       }
@@ -368,14 +398,14 @@ app.get('/api/player-photo', async (req, res) => {
   try {
     if (isJoaoPedroChelsea) {
       if (JOAO_PEDRO_OVERRIDE_URL) {
-        const imgRes = await fetch(JOAO_PEDRO_OVERRIDE_URL, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FPLDashboard/1.0)' },
+        const img = await fetchImage(JOAO_PEDRO_OVERRIDE_URL, {
+          userAgent: 'Mozilla/5.0 (compatible; FPLDashboard/1.0)',
+          trusted: true,
         });
-        if (imgRes.ok) {
-          const contentType = imgRes.headers.get('content-type') || 'image/png';
+        if (img) {
           res.set('Cache-Control', 'public, max-age=86400, must-revalidate');
-          res.set('Content-Type', contentType);
-          res.send(Buffer.from(await imgRes.arrayBuffer()));
+          res.set('Content-Type', img.contentType);
+          res.send(img.buf);
           return;
         }
       }
@@ -423,14 +453,11 @@ app.get('/api/player-photo', async (req, res) => {
         }
       }
       if (imageUrl) {
-        const imgRes = await fetch(imageUrl, {
-          headers: { 'User-Agent': 'Mozilla/5.0 (compatible; FPLDashboard/1.0)' },
-        });
-        if (imgRes.ok) {
-          const contentType = imgRes.headers.get('content-type') || 'image/png';
+        const img = await fetchImage(imageUrl, { userAgent: 'Mozilla/5.0 (compatible; FPLDashboard/1.0)' });
+        if (img) {
           res.set('Cache-Control', 'public, max-age=86400, must-revalidate');
-          res.set('Content-Type', contentType);
-          res.send(Buffer.from(await imgRes.arrayBuffer()));
+          res.set('Content-Type', img.contentType);
+          res.send(img.buf);
           return;
         }
       }
@@ -711,6 +738,18 @@ async function buildLeagueTablePage(id, page, gw) {
   return data;
 }
 
+/**
+ * Per-IP allowances for league work that isn't cached yet (each build can mean up to ~100 FPL calls). Viewing
+ * leagues other people are also viewing doesn't count, so shared mobile IPs (many people, one IP) are unaffected;
+ * this stops one visitor from flooding FPL with requests for many different leagues.
+ */
+const leagueBuildBudget = rateBudget({ limit: 30, name: 'league-table-builds' });
+const extremesBuildBudget = rateBudget({ limit: 6, name: 'league-extremes-builds' });
+function tooManyBuilds(res) {
+  res.set('Retry-After', '60');
+  res.status(429).json({ error: 'Too many requests. Please slow down and try again in a minute.' });
+}
+
 app.get('/api/leagues-classic/:id/standings-with-chips', async (req, res) => {
   const id = req.params.id;
   const gw = Number(req.query.gw) || 1;
@@ -718,8 +757,11 @@ app.get('/api/leagues-classic/:id/standings-with-chips', async (req, res) => {
   if (!/^\d+$/.test(id) || !Number.isInteger(page) || page < 1 || !Number.isInteger(gw) || gw < 1 || gw > 38) {
     return res.status(400).json({ error: 'Invalid league id, page or gameweek' });
   }
+  const key = `league:${id}:${page}:${gw}`;
+  // Building a page costs up to ~100 FPL calls; cached pages are free and shared, so only builds are limited.
+  if (!memoFresh(key) && !leagueBuildBudget.take(req)) return tooManyBuilds(res);
   try {
-    res.json(await memo(`league:${id}:${page}:${gw}`, LEAGUE_TABLE_TTL_MS, () => buildLeagueTablePage(id, page, gw)));
+    res.json(await memo(key, LEAGUE_TABLE_TTL_MS, () => buildLeagueTablePage(id, page, gw)));
   } catch (err) {
     sendFplError(res, err, 'Standings-with-chips error');
   }
@@ -795,8 +837,11 @@ app.get('/api/leagues-classic/:id/gw-extremes', async (req, res) => {
     if (gw !== current) return res.json({ gw, complete: false, teams: null, top: [], bottom: [] });
     const finished = (bootstrap.events ?? []).find((e) => e.id === gw)?.finished;
     const ttl = finished ? 6 * 60 * 60 * 1000 : 10 * 60 * 1000;
+    const key = `league-extremes:${id}:${gw}`;
+    // A whole-league scan can be up to 100 FPL calls: few new scans per visitor; cached results are free.
+    if (!memoFresh(key) && !extremesBuildBudget.take(req)) return tooManyBuilds(res);
     res.set('Cache-Control', 'public, max-age=120');
-    res.json(await memo(`league-extremes:${id}:${gw}`, ttl, () => buildLeagueExtremes(id, gw, size)));
+    res.json(await memo(key, ttl, () => buildLeagueExtremes(id, gw, size)));
   } catch (err) {
     sendFplError(res, err, 'League extremes error');
   }

@@ -13,6 +13,11 @@ const FPL_BASE = 'https://fantasy.premierleague.com/api';
 const UA = 'Mozilla/5.0 (compatible; FPLDashboard/1.0; +https://fantasy.premierleague.com)';
 const TIMEOUT_MS = 15000;
 const MAX_CONCURRENT = 16;
+/**
+ * Most FPL requests allowed to wait for a slot. Normally the queue is near empty (the cache answers most requests);
+ * a flood of uncached requests is turned away instead of making every visitor wait behind it.
+ */
+const MAX_QUEUED = 1000;
 const MAX_BYTES = 150 * 1024 * 1024;
 /** How long after expiry an entry may still be served when FPL is failing. */
 const STALE_IF_ERROR_MS = 15 * 60 * 1000;
@@ -40,7 +45,10 @@ const stats = { hits: 0, misses: 0, stale: 0, errors: 0, upstream: 0 };
 let active = 0;
 const queue = [];
 async function withSlot(fn) {
-  if (active >= MAX_CONCURRENT) await new Promise((resolve) => queue.push(resolve));
+  if (active >= MAX_CONCURRENT) {
+    if (queue.length >= MAX_QUEUED) throw new FplError(503, 'Too busy: too many FPL requests waiting');
+    await new Promise((resolve) => queue.push(resolve));
+  }
   active += 1;
   try {
     return await fn();
@@ -161,6 +169,12 @@ export async function fplGet(path, { ttl } = {}) {
     .finally(() => inflight.delete(key));
   inflight.set(key, promise);
   return promise;
+}
+
+/** True when memo(key) would answer from its cache (or join a build already running) without new FPL calls. */
+export function memoFresh(key) {
+  const hit = memoCache.get(key);
+  return (hit != null && hit.expires > Date.now()) || memoInflight.has(key);
 }
 
 /** Cache any computed value (e.g. a league table built from many FPL calls) with the same in-flight sharing. */
