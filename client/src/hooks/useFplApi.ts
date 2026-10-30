@@ -222,9 +222,11 @@ export function computeTeamPointsSummary(
   const didNotPlay = (p: PlayerPoints) => getMins(p) === 0 && isGameweekOver(p.element_id);
 
   // Armband: if the captain did not play, the vice-captain (if they played) gets the captain's multiplier (x2, or x3 with Triple Captain).
-  const captain = players.find((p) => p.is_captain && !p.is_on_bench);
-  const vice = players.find((p) => p.is_vice_captain && !p.is_on_bench);
-  const captainMultiplier = captain && captain.multiplier > 1 ? captain.multiplier : 2;
+  // Look in all 15: once a gameweek is over, FPL's picks already have its auto-subs applied, so a captain who didn't
+  // play is listed on the bench (multiplier 0) and the vice-captain carries the armband's multiplier.
+  const captain = players.find((p) => p.is_captain);
+  const vice = players.find((p) => p.is_vice_captain);
+  const captainMultiplier = Math.max(captain?.multiplier ?? 0, vice?.multiplier ?? 0, 2);
   const armbandId =
     captain && didNotPlay(captain) && vice && getMins(vice) > 0 ? vice.element_id : captain?.element_id;
   // Picks API gives bench players multiplier 0; score everyone at 1x (bench points are shown raw) except the armband holder.

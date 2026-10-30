@@ -582,9 +582,11 @@ function computeGwPointsFromPicks(picksJson, liveByElement, elementById, clubsSt
   };
   const didNotPlay = (pick) => getMins(pick) === 0 && isGameweekOver(pick);
 
-  const captain = starting.find((p) => p.is_captain);
-  const vice = starting.find((p) => p.is_vice_captain);
-  const captainMultiplier = captain && captain.multiplier > 1 ? captain.multiplier : 2;
+  // All 15: once a gameweek is over, FPL's picks have its auto-subs applied, so a captain who didn't play is on the
+  // bench (multiplier 0) and the vice-captain carries the armband's multiplier (2, or 3 with Triple Captain).
+  const captain = picks.find((p) => p.is_captain);
+  const vice = picks.find((p) => p.is_vice_captain);
+  const captainMultiplier = Math.max(captain?.multiplier ?? 0, vice?.multiplier ?? 0, 2);
   const armbandId = captain && didNotPlay(captain) && vice && getMins(vice) > 0 ? vice.element : captain?.element;
   const getPts = (pick) => getRawPts(pick) * (pick.element === armbandId ? captainMultiplier : 1);
 
